@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Notetaker v2.1.0</title>
+  <title>AI Notetaker v2.2.0</title>
   <style>
     /* ── Reset & base ── */
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -305,6 +305,66 @@
     #m-transcript.collapsed { max-height: calc(1.65em * 8); overflow-y: auto; flex: none; }
     .panel.transcript-collapsed { min-height: auto; }
 
+    /* ── Template & style selector row ── */
+    .template-row {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    }
+    .template-row label {
+      font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-dim); white-space: nowrap;
+    }
+    .template-select {
+      flex: 1; font-size: 0.82rem; padding: 6px 10px;
+      border: 0.5px solid var(--border); border-radius: 7px; outline: none;
+      font-family: 'Segoe UI', sans-serif; background: var(--bg-surface2);
+      color: var(--text-muted); cursor: pointer; min-width: 140px;
+    }
+    .template-select:focus { border-color: var(--accent); }
+
+    /* ── Context box ── */
+    .context-toggle-row { display: flex; align-items: center; }
+    .btn-add-context {
+      font-size: 0.78rem; font-weight: 500; color: var(--text-dim);
+      background: none; border: 0.5px solid var(--border);
+      border-radius: 6px; padding: 5px 12px; cursor: pointer;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+    .btn-add-context:hover { color: var(--accent); border-color: var(--accent-border); background: var(--accent-bg); }
+    .btn-add-context.open  { color: var(--accent); border-color: var(--accent-border); background: var(--accent-bg); }
+    .context-panel {
+      background: var(--bg-surface2); border-radius: 10px;
+      border: 0.5px solid var(--border);
+      overflow: hidden; max-height: 0; transition: max-height 0.25s ease;
+    }
+    .context-panel.open { max-height: 200px; }
+    .context-inner { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .context-label {
+      font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-dim);
+    }
+    .context-input-row { display: flex; gap: 8px; align-items: flex-start; }
+    .context-textarea {
+      flex: 1; font-size: 0.85rem; padding: 8px 10px; min-height: 60px;
+      border: 0.5px solid var(--border); border-radius: 6px; outline: none;
+      font-family: 'Segoe UI', sans-serif; color: var(--text-muted);
+      background: var(--bg-app); resize: vertical; line-height: 1.5;
+      transition: border-color 0.2s;
+    }
+    .context-textarea:focus { border-color: var(--accent); }
+    .context-textarea::placeholder { color: var(--text-dim); font-style: italic; }
+    .btn-context-dictate {
+      padding: 7px 12px; font-size: 0.78rem; font-weight: 500;
+      border-radius: 6px; border: 0.5px solid var(--border);
+      background: var(--bg-surface); color: var(--text-dim);
+      cursor: pointer; white-space: nowrap; transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .btn-context-dictate:hover { background: var(--bg-control); color: var(--text-muted); }
+    .btn-context-dictate.recording {
+      background: var(--red-bg); color: var(--red);
+      border-color: var(--red-border);
+    }
+
     /* ── Warning messages ── */
     .warn-msg {
       display: none; font-size: 0.8rem; color: var(--amber);
@@ -365,7 +425,7 @@
   <header>
     <h1>AI Notetaker</h1>
     <div class="header-right">
-      <span>v2.1.0</span>
+      <span>v2.2.0</span>
       <div class="menu-container">
         <button id="btn-menu">&#8943;</button>
         <div class="menu-dropdown" id="menu-dropdown">
@@ -483,6 +543,25 @@
       </div>
     </div>
 
+    <!-- Template & style selectors -->
+    <div class="template-row">
+      <label>Template</label>
+      <select id="qn-template-select" class="template-select">
+        <option value="general">General Meeting</option>
+        <option value="realestate">Real Estate Call</option>
+        <option value="loan">Loan Inquiry</option>
+        <option value="intake">Client Intake</option>
+        <option value="oneone">1:1 / Coaching Call</option>
+        <option value="brainstorm">Brainstorm</option>
+      </select>
+      <label>Style</label>
+      <select id="qn-style-select" class="template-select">
+        <option value="bullets">Bullet Points</option>
+        <option value="prose">Prose / Narrative</option>
+        <option value="exec">Executive Summary</option>
+      </select>
+    </div>
+
     <div id="no-key-msg" class="warn-msg">Enter your Anthropic API key in Settings to generate notes.</div>
 
     <div class="panels">
@@ -531,6 +610,43 @@
       <select id="meeting-mic-select" class="meeting-select">
         <option value="">— loading devices —</option>
       </select>
+    </div>
+
+    <!-- Template & style selectors -->
+    <div class="template-row">
+      <label>Template</label>
+      <select id="m-template-select" class="template-select">
+        <option value="general">General Meeting</option>
+        <option value="realestate">Real Estate Call</option>
+        <option value="loan">Loan Inquiry</option>
+        <option value="intake">Client Intake</option>
+        <option value="oneone">1:1 / Coaching Call</option>
+        <option value="brainstorm">Brainstorm</option>
+      </select>
+      <label>Style</label>
+      <select id="m-style-select" class="template-select">
+        <option value="bullets">Bullet Points</option>
+        <option value="prose">Prose / Narrative</option>
+        <option value="exec">Executive Summary</option>
+      </select>
+    </div>
+
+    <!-- Context box -->
+    <div class="context-toggle-row">
+      <button class="btn-add-context" id="btn-add-context">+ Add Context</button>
+    </div>
+    <div class="context-panel" id="context-panel">
+      <div class="context-inner">
+        <div class="context-label">Call Context — advise the AI before generating notes</div>
+        <div class="context-input-row">
+          <textarea
+            id="context-textarea"
+            class="context-textarea"
+            placeholder="e.g. DSCR loan inquiry, borrower has 3 investment properties, looking at a 4-unit in Phoenix..."
+          ></textarea>
+          <button class="btn-context-dictate" id="btn-context-dictate">Dictate</button>
+        </div>
+      </div>
     </div>
 
     <!-- Missing OpenAI key notice -->
@@ -784,6 +900,86 @@
   }
 
   // ═══════════════════════════════════════════
+  //  PROMPT BUILDER
+  // ═══════════════════════════════════════════
+  function buildSystemPrompt(template, style) {
+    // ── Output style instructions ──
+    const styleInstructions = {
+      bullets: `Format your output using tight bullet points. No blank lines between bullets or sections. Each bullet on its own line. Section headings in uppercase.`,
+      prose:   `Format your output as short, dense paragraphs — one paragraph per section. No bullet points. No blank lines between sections. Section headings in uppercase followed by a colon.`,
+      exec:    `Format your output as an executive summary only. Maximum 5 bullet points total covering the most critical information across all sections. No section headings. No blank lines between bullets. Be ruthlessly concise.`
+    };
+    const fmt = styleInstructions[style] || styleInstructions.bullets;
+    // ── Shared rules applied to all templates ──
+    const sharedRules = `
+Rules:
+- No blank lines between bullet points or between sections
+- No filler phrases or padding
+- No emojis
+- If a section has nothing to report, write "None identified" on one line
+- Be concise — every word must earn its place
+- Section order must be followed exactly as specified`;
+    // ── Template-specific prompts ──
+    const templates = {
+      general: `You are a professional meeting assistant. Extract and format the following sections in this exact order:
+1. TOPICS DISCUSSED — main subjects covered
+2. KEY DECISIONS — choices made or agreed upon
+3. ACTION ITEMS — concrete tasks with owners if mentioned
+${sharedRules}
+${fmt}`,
+      realestate: `You are a professional real estate call analyst. Extract and format the following sections in this exact order:
+1. TOPICS DISCUSSED — subjects and properties discussed
+2. PROPERTY DETAILS — address, type, price, condition, key characteristics
+3. FINANCING DISCUSSED — loan type, terms, rates, or financing strategy mentioned
+4. CLIENT MOTIVATION — what the client wants, timeline, and why they're moving
+5. KEY DECISIONS — choices made or agreed upon
+6. ACTION ITEMS — concrete next steps with owners if mentioned
+${sharedRules}
+${fmt}`,
+      loan: `You are a professional loan intake analyst. Extract and format the following sections in this exact order:
+1. TOPICS DISCUSSED — subjects covered in the call
+2. LOAN DETAILS — loan type, amount, rate, term, and purpose
+3. PROPERTY DETAILS — address, type, value, and condition
+4. BORROWER PROFILE — name, background, and stated goals
+5. LIQUIDITY — cash reserves, down payment, or liquid assets discussed
+6. CREDIT — credit score, credit history, or credit concerns mentioned
+7. EXPERIENCE — borrower's real estate or investment experience mentioned
+8. QUALIFICATION FLAGS — any potential issues or lender concerns
+9. KEY DECISIONS — choices made or agreed upon
+10. ACTION ITEMS — concrete next steps with owners if mentioned
+${sharedRules}
+${fmt}`,
+      intake: `You are a professional client intake analyst. Extract and format the following sections in this exact order:
+1. TOPICS DISCUSSED — subjects covered
+2. CLIENT BACKGROUND — who they are, their situation, relevant history
+3. GOALS — what they are trying to achieve
+4. PAIN POINTS — challenges, frustrations, or blockers mentioned
+5. KEY DECISIONS — choices made or agreed upon
+6. ACTION ITEMS — concrete next steps with owners if mentioned
+${sharedRules}
+${fmt}`,
+      oneone: `You are a professional 1:1 meeting analyst. Extract and format the following sections in this exact order:
+1. TOPICS DISCUSSED — subjects covered
+2. GOALS — objectives or priorities discussed
+3. BLOCKERS — challenges, obstacles, or concerns raised
+4. COMMITMENTS MADE — specific commitments or promises from either party
+5. KEY DECISIONS — choices made or agreed upon
+6. ACTION ITEMS — concrete next steps with owners if mentioned
+${sharedRules}
+${fmt}`,
+      brainstorm: `You are a professional brainstorm facilitator. Extract and format the following sections in this exact order:
+1. TOPICS DISCUSSED — subjects and themes explored
+2. IDEAS GENERATED — all ideas surfaced, grouped by theme if possible
+3. TOP CANDIDATES — ideas that received the most attention or enthusiasm
+4. KEY DECISIONS — any decisions made during the session
+5. ACTION ITEMS — concrete next steps with owners if mentioned
+${sharedRules}
+${fmt}`
+    };
+    return templates[template] || templates.general;
+  }
+
+  // ═══════════════════════════════════════════
   //  QUICK NOTE MODE
   // ═══════════════════════════════════════════
 
@@ -942,11 +1138,10 @@
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-6', max_tokens: 1024,
-          system: `You are a professional meeting assistant. Given a spoken transcript, extract and format:
-1. ACTION ITEMS — concrete tasks, owners if mentioned
-2. KEY DECISIONS — choices made or agreed upon
-3. TOPICS DISCUSSED — main subjects covered
-Be concise. Use bullet points. Do not use emojis. If a section has nothing to report, write "None identified."`,
+          system: buildSystemPrompt(
+            document.getElementById('qn-template-select').value,
+            document.getElementById('qn-style-select').value
+          ),
           messages: [{ role: 'user', content: `Here is the meeting transcript:\n\n${text}` }]
         })
       });
@@ -1055,6 +1250,64 @@ Be concise. Use bullet points. Do not use emojis. If a section has nothing to re
   const mBtnCopyNotes           = document.getElementById('m-btn-copy-notes');
   const mBtnRetry               = document.getElementById('m-btn-retry');
 
+  // Template & style state
+  let mCurrentTemplate = 'general';
+  let mCurrentStyle    = 'bullets';
+
+  // ── Context box ──
+  const btnAddContext      = document.getElementById('btn-add-context');
+  const contextPanel       = document.getElementById('context-panel');
+  const contextTextarea    = document.getElementById('context-textarea');
+  const btnContextDictate  = document.getElementById('btn-context-dictate');
+  btnAddContext.addEventListener('click', () => {
+    const isOpen = contextPanel.classList.toggle('open');
+    btnAddContext.classList.toggle('open', isOpen);
+    btnAddContext.textContent = isOpen ? '− Context' : '+ Add Context';
+    if (!isOpen) contextTextarea.value = ''; // clear on close
+  });
+  // ── Context voice dictation ──
+  let contextRecognition = null;
+  let contextDictating   = false;
+  btnContextDictate.addEventListener('click', () => {
+    if (!SpeechRecognition) {
+      alert('Voice dictation requires Chrome on desktop.');
+      return;
+    }
+    if (contextDictating) {
+      // Stop dictation
+      if (contextRecognition) { contextRecognition.stop(); contextRecognition = null; }
+      contextDictating = false;
+      btnContextDictate.textContent = 'Dictate';
+      btnContextDictate.classList.remove('recording');
+    } else {
+      // Start dictation
+      contextDictating = true;
+      btnContextDictate.textContent = 'Stop';
+      btnContextDictate.classList.add('recording');
+      contextRecognition = new SpeechRecognition();
+      contextRecognition.continuous      = true;
+      contextRecognition.interimResults  = false;
+      contextRecognition.lang            = 'en-US';
+      contextRecognition.onresult = (event) => {
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            contextTextarea.value += (contextTextarea.value ? ' ' : '') +
+              event.results[i][0].transcript.trim();
+          }
+        }
+      };
+      contextRecognition.onend = () => {
+        if (contextDictating) contextRecognition.start(); // keep going until stopped
+      };
+      contextRecognition.onerror = () => {
+        contextDictating = false;
+        btnContextDictate.textContent = 'Dictate';
+        btnContextDictate.classList.remove('recording');
+      };
+      contextRecognition.start();
+    }
+  });
+
   // Meeting state
   let meetingStream    = null;
   let meetingRecorder  = null;
@@ -1157,6 +1410,13 @@ Be concise. Use bullet points. Do not use emojis. If a section has nothing to re
   mMicSelect.addEventListener('change', () => localStorage.setItem(LS_MIC_DEVICE, mMicSelect.value));
   mMicSelect.addEventListener('focus', () => { if (mMicSelect.options.length <= 1) populateMicDevices(); });
 
+  document.getElementById('m-template-select').addEventListener('change', (e) => {
+    mCurrentTemplate = e.target.value;
+  });
+  document.getElementById('m-style-select').addEventListener('change', (e) => {
+    mCurrentStyle = e.target.value;
+  });
+
   if (getCurrentMode() === 'meeting') populateMicDevices();
   else refreshMRecordBtn(); // set initial disabled state based on key
 
@@ -1171,6 +1431,15 @@ Be concise. Use bullet points. Do not use emojis. If a section has nothing to re
       meetingChunks    = [];
       meetingAudioBlob = null;
       mBtnRetry.style.display = 'none';   // clear retry state from any previous failed session
+
+      // Stop context dictation if running
+      if (contextDictating && contextRecognition) {
+        contextRecognition.stop(); contextRecognition = null;
+        contextDictating = false;
+        btnContextDictate.textContent = 'Dictate';
+        btnContextDictate.classList.remove('recording');
+      }
+
       mIsRecording     = true;
       mIsPaused        = false;
 
@@ -1330,8 +1599,9 @@ Be concise. Use bullet points. Do not use emojis. If a section has nothing to re
 
   // ── Meeting Generate Notes ──
   async function generateMeetingNotes() {
-    const apiKey = getAnthropicKey();
-    const text   = mTranscriptEl.innerText.trim();
+    const apiKey  = getAnthropicKey();
+    const text    = mTranscriptEl.innerText.trim();
+    const context = contextTextarea.value.trim();
     if (!apiKey || !text) return;
 
     showMNotesPanel('loading');
@@ -1348,12 +1618,8 @@ Be concise. Use bullet points. Do not use emojis. If a section has nothing to re
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-6', max_tokens: 1024,
-          system: `You are a professional meeting assistant. Given a spoken transcript, extract and format:
-1. ACTION ITEMS — concrete tasks, owners if mentioned
-2. KEY DECISIONS — choices made or agreed upon
-3. TOPICS DISCUSSED — main subjects covered
-Be concise. Use bullet points. Do not use emojis. If a section has nothing to report, write "None identified."`,
-          messages: [{ role: 'user', content: `Here is the meeting transcript:\n\n${text}` }]
+          system: buildSystemPrompt(mCurrentTemplate, mCurrentStyle),
+          messages: [{ role: 'user', content: `${context ? `Context provided by the user:\n${context}\n\n` : ''}Here is the meeting transcript:\n\n${text}` }]
         })
       });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e?.error?.message || `API error ${res.status}`); }
@@ -1580,6 +1846,7 @@ Be concise. Use bullet points. Do not use emojis. If a section has nothing to re
     if (mHasContent() && !confirm('This will clear the transcript and notes. Continue?')) return;
     if (mIsRecording) meetingEndSession();
     meetingChunks = []; meetingAudioBlob = null;
+    contextTextarea.value = '';
     mTranscriptEl.innerHTML = ''; mTranscriptError.textContent = '';
     mTranscriptEl.classList.remove('collapsed');
     mTranscriptPanel.classList.remove('transcript-collapsed');
