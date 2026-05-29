@@ -1,0 +1,1868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Notetaker v2.2.0</title>
+  <style>
+    /* ── Reset & base ── */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-app:        #0f1117;
+      --bg-surface:    #1c1e28;
+      --bg-surface2:   #161820;
+      --bg-control:    #252830;
+      --border:        #2a2d38;
+      --text-primary:  #e8e8f0;
+      --text-muted:    #777;
+      --text-dim:      #555;
+      --accent:        #3ee8a0;
+      --accent-bg:     rgba(62,232,160,0.10);
+      --accent-border: rgba(62,232,160,0.22);
+      --red:           #e24b4a;
+      --red-bg:        rgba(226,75,74,0.08);
+      --red-border:    rgba(226,75,74,0.20);
+      --amber:         #fac83c;
+      --amber-bg:      rgba(250,200,60,0.10);
+      --amber-border:  rgba(250,200,60,0.22);
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: var(--bg-app);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 820px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* ── Header ── */
+    header { display: flex; align-items: center; justify-content: space-between; }
+    header h1 { font-size: 1.4rem; font-weight: 600; color: var(--text-primary); letter-spacing: -0.02em; }
+    .header-right { display: flex; align-items: center; gap: 14px; }
+    .header-right span { font-size: 0.75rem; color: var(--text-dim); }
+
+    #btn-settings {
+      padding: 6px 14px; font-size: 0.8rem; font-weight: 500;
+      border-radius: 7px; border: 0.5px solid var(--border);
+      background: var(--bg-surface); color: var(--text-dim); cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    #btn-settings:hover { background: var(--bg-control); color: var(--text-muted); }
+    #btn-settings.open  { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+    /* ── Mode selector ── */
+    .mode-selector {
+      display: flex; background: var(--bg-surface2); border-radius: 10px;
+      padding: 3px; border: 0.5px solid var(--border); gap: 3px;
+    }
+    .mode-tab {
+      flex: 1; padding: 8px 16px; border-radius: 7px; border: none;
+      font-size: 0.88rem; font-weight: 500; background: transparent;
+      color: var(--text-dim); cursor: pointer; transition: background 0.2s, color 0.2s;
+    }
+    .mode-tab.active { background: var(--bg-control); color: var(--text-primary); }
+    .mode-tab:not(.active):hover { background: var(--bg-surface); color: var(--text-muted); }
+
+    /* ── Settings panel ── */
+    .settings-panel {
+      background: var(--bg-surface2); border-radius: 10px;
+      border: 0.5px solid var(--border);
+      overflow: hidden; max-height: 0; transition: max-height 0.3s ease;
+    }
+    .settings-panel.open { max-height: 220px; }
+    .settings-inner { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+    .settings-title {
+      font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 2px;
+    }
+    .settings-row { display: flex; align-items: center; gap: 10px; }
+    .settings-row label { font-size: 0.8rem; font-weight: 500; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+    .settings-row label em { font-style: normal; font-weight: 400; color: var(--text-dim); }
+    .settings-key-input {
+      flex: 1; font-size: 0.88rem; padding: 7px 11px;
+      border: 0.5px solid var(--border); border-radius: 6px; outline: none;
+      font-family: 'Segoe UI', sans-serif; color: var(--text-muted);
+      background: var(--bg-app); transition: border-color 0.2s; min-width: 0;
+    }
+    .settings-key-input:focus { border-color: var(--accent); }
+    .key-saved { font-size: 0.75rem; font-weight: 600; color: var(--accent); white-space: nowrap; display: none; }
+
+    /* ── Setup Guide ── */
+    .setup-section {
+      border-top: 0.5px solid var(--border); padding-top: 14px; margin-top: 4px;
+    }
+    .setup-section:first-of-type { border-top: none; padding-top: 0; }
+    .setup-step-label {
+      font-size: 0.8rem; font-weight: 600; color: var(--text-muted);
+      margin-bottom: 8px; display: flex; align-items: center; gap: 8px;
+    }
+    .setup-chip {
+      font-size: 0.7rem; font-weight: 500; color: var(--accent);
+      background: var(--accent-bg); border: 0.5px solid var(--accent-border);
+      border-radius: 4px; padding: 2px 7px;
+    }
+    .setup-body p { font-size: 0.82rem; color: var(--text-muted); line-height: 1.55; }
+    .setup-body ol {
+      margin: 8px 0 8px 1.2em; display: flex; flex-direction: column; gap: 5px;
+    }
+    .setup-body ol li { font-size: 0.82rem; color: var(--text-muted); line-height: 1.5; }
+    .setup-body code {
+      font-family: 'Courier New', monospace; font-size: 0.8rem;
+      background: var(--bg-control); color: var(--accent);
+      padding: 1px 5px; border-radius: 3px;
+    }
+    .setup-note {
+      font-size: 0.75rem; color: var(--amber); background: var(--amber-bg);
+      border: 0.5px solid var(--amber-border); border-radius: 5px;
+      padding: 6px 10px; margin-top: 8px;
+    }
+    /* Taller max-height for setup panel since it has more content */
+    #setup-panel.open { max-height: 800px; }
+
+    /* ── Status badge (shared) ── */
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 0.82rem; font-weight: 500; padding: 5px 12px;
+      border-radius: 999px; background: var(--bg-surface); color: var(--text-dim);
+      border: 0.5px solid var(--border); transition: all 0.3s;
+    }
+    .status-badge.recording { background: var(--red-bg); color: var(--red); border-color: var(--red-border); }
+    .status-badge.paused    { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); transition: background 0.3s; }
+    .status-badge.recording .status-dot { background: var(--red); animation: pulse 1.2s infinite; }
+    .status-badge.paused    .status-dot { background: var(--amber); }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    /* ── Controls row ── */
+    .controls { display: flex; align-items: center; gap: 12px; }
+    .controls-spacer { flex: 1; }
+    .controls-right { display: flex; gap: 12px; }
+
+    button {
+      padding: 9px 20px; border-radius: 7px; border: none;
+      font-size: 0.9rem; font-weight: 500; cursor: pointer;
+      transition: opacity 0.15s, background 0.15s;
+    }
+    button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* Quick Note buttons */
+    #btn-record  { background: var(--accent); color: #061410; }
+    #btn-record:not(:disabled):hover { opacity: 0.88; }
+    #btn-pause   { background: var(--bg-surface); color: var(--text-muted); border: 0.5px solid var(--border); }
+    #btn-pause.active { background: var(--amber-bg); color: var(--amber); border: 0.5px solid var(--amber-border); }
+    #btn-generate { background: var(--accent-bg); color: var(--accent); border: 0.5px solid var(--accent-border); display: none; }
+    #btn-generate:not(:disabled):hover { background: rgba(62,232,160,0.18); }
+    #btn-stop  { background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-border); }
+    #btn-stop:not(:disabled):hover { background: rgba(226,75,74,0.14); }
+    #btn-clear { background: var(--bg-surface); color: var(--text-dim); border: 0.5px solid var(--border); }
+    #btn-clear:hover { background: var(--bg-control); }
+
+    /* Meeting/Call buttons */
+    #m-btn-record  { background: var(--accent); color: #061410; }
+    #m-btn-record:not(:disabled):hover { opacity: 0.88; }
+    #m-btn-pause   { background: var(--bg-surface); color: var(--text-muted); border: 0.5px solid var(--border); }
+    #m-btn-pause.active { background: var(--amber-bg); color: var(--amber); border: 0.5px solid var(--amber-border); }
+    #m-btn-generate { background: var(--accent-bg); color: var(--accent); border: 0.5px solid var(--accent-border); display: none; }
+    #m-btn-generate:not(:disabled):hover { background: rgba(62,232,160,0.18); }
+    #m-btn-retry { background: var(--amber-bg); color: var(--amber); border: 0.5px solid var(--amber-border); }
+    #m-btn-retry:hover { background: rgba(250,200,60,0.16); }
+    #m-btn-stop  { background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-border); }
+    #m-btn-stop:not(:disabled):hover { background: rgba(226,75,74,0.14); }
+    #m-btn-clear { background: var(--bg-surface); color: var(--text-dim); border: 0.5px solid var(--border); }
+    #m-btn-clear:hover { background: var(--bg-control); }
+
+    /* ── Two-panel layout ── */
+    .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 600px) { .panels { grid-template-columns: 1fr; } }
+
+    /* ── Panel card ── */
+    .panel {
+      background: var(--bg-surface); border-radius: 12px; padding: 20px;
+      border: 0.5px solid var(--border);
+      display: flex; flex-direction: column; gap: 12px; min-height: 340px;
+    }
+    .panel-header { display: flex; align-items: center; justify-content: space-between; }
+    .panel-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); }
+    .panel-header-right { display: flex; align-items: center; gap: 8px; }
+
+    /* ── Transcript (Quick Note) ── */
+    #transcript {
+      flex: 1; font-size: 0.95rem; line-height: 1.65; color: var(--text-muted);
+      overflow-y: auto; white-space: pre-wrap; outline: none;
+      border-radius: 6px; transition: border 0.2s, padding 0.2s;
+    }
+    #transcript:empty::before { content: "Transcript will appear here as you speak..."; color: var(--text-dim); font-style: italic; }
+    #transcript.editable { border: 0.5px solid var(--accent-border); padding: 8px 10px; cursor: text; }
+    #transcript.editable:focus { border-color: var(--accent); }
+
+    /* ── Transcript (Meeting/Call) ── */
+    #m-transcript {
+      flex: 1; font-size: 0.95rem; line-height: 1.65; color: var(--text-muted);
+      overflow-y: auto; white-space: pre-wrap; outline: none;
+      border-radius: 6px; transition: border 0.2s, padding 0.2s; display: none;
+    }
+    #m-transcript.editable { border: 0.5px solid var(--accent-border); padding: 8px 10px; cursor: text; }
+    #m-transcript.editable:focus { border-color: var(--accent); }
+
+    /* Edit hint (shared style) */
+    .edit-hint { font-size: 0.7rem; color: var(--accent); opacity: 0.7; display: none; }
+
+    /* ── Transcript error ── */
+    .transcript-error {
+      flex: 1; display: none; padding: 12px;
+      font-size: 0.88rem; color: var(--red); line-height: 1.5;
+      border: 0.5px solid var(--red-border); border-radius: 6px;
+      background: var(--red-bg);
+    }
+
+    /* ── Small action buttons ── */
+    .btn-small {
+      padding: 4px 10px; font-size: 0.75rem; font-weight: 500;
+      border-radius: 5px; border: 0.5px solid var(--border);
+      background: var(--bg-control); color: var(--text-dim); cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-small:hover    { background: var(--bg-surface2); color: var(--text-muted); }
+    .btn-small:disabled { opacity: 0.3; cursor: not-allowed; }
+    .btn-small.copied   { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+    /* ── File menu (⋯ button + dropdown) ── */
+    #btn-menu {
+      padding: 6px 14px; font-size: 1rem; font-weight: 700; letter-spacing: 0.05em;
+      border-radius: 7px; border: 0.5px solid var(--border);
+      background: var(--bg-surface); color: var(--text-dim); cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    #btn-menu:hover { background: var(--bg-control); color: var(--text-muted); }
+    #btn-menu.open  { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+
+    .menu-container { position: relative; }
+    .menu-dropdown {
+      position: absolute; right: 0; top: calc(100% + 6px); z-index: 200;
+      background: var(--bg-surface); border: 0.5px solid var(--border);
+      border-radius: 10px; padding: 5px 0; min-width: 188px;
+      display: none; flex-direction: column;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.45);
+    }
+    .menu-dropdown.open { display: flex; }
+    .menu-item {
+      padding: 9px 18px; font-size: 0.85rem; font-weight: 500;
+      color: var(--text-muted); background: none; border: none;
+      text-align: left; cursor: pointer; width: 100%;
+      transition: background 0.1s, color 0.1s; border-radius: 0;
+    }
+    .menu-item:hover:not(:disabled) { background: var(--bg-control); color: var(--text-primary); }
+    .menu-item:disabled { opacity: 0.32; cursor: not-allowed; }
+    .menu-item.active { color: var(--accent); }
+    .menu-divider { height: 0.5px; background: var(--border); margin: 4px 0; }
+
+    /* ── Notes panel states (shared) ── */
+    .notes-placeholder {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      font-size: 0.88rem; color: var(--text-dim); font-style: italic; text-align: center;
+    }
+    .notes-placeholder .icon { display: none; }
+    .notes-placeholder p { font-size: 0.88rem; line-height: 1.6; font-style: italic; color: var(--text-dim); }
+    .notes-placeholder strong { font-weight: 600; font-style: normal; color: var(--text-muted); }
+
+    .notes-loading {
+      flex: 1; display: none; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px; color: var(--text-dim);
+    }
+    .spinner {
+      width: 32px; height: 32px; border: 3px solid var(--bg-control);
+      border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .notes-loading p { font-size: 0.85rem; font-weight: 500; }
+
+    .notes-output { flex: 1; display: none; font-size: 0.82rem; line-height: 1.45; overflow-y: auto; color: var(--text-muted); }
+    .notes-output h3 {
+      font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--accent); margin: 10px 0 3px;
+    }
+    .notes-output h3:first-child { margin-top: 0; }
+    .notes-output ul { padding-left: 1.1em; margin: 0; }
+    .notes-output li { margin-bottom: 2px; color: var(--text-muted); }
+    .notes-output p  { margin-bottom: 2px; }
+    .notes-output.editable { border: 0.5px solid var(--accent-border); padding: 8px 10px; cursor: text; outline: none; border-radius: 6px; }
+    .notes-output.editable:focus { border-color: var(--accent); }
+
+    /* ── Collapsible transcript ── */
+    #transcript.collapsed   { max-height: calc(1.65em * 8); overflow-y: auto; flex: none; }
+    #m-transcript.collapsed { max-height: calc(1.65em * 8); overflow-y: auto; flex: none; }
+    .panel.transcript-collapsed { min-height: auto; }
+
+    /* ── Template & style selector row ── */
+    .template-row {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    }
+    .template-row label {
+      font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-dim); white-space: nowrap;
+    }
+    .template-select {
+      flex: 1; font-size: 0.82rem; padding: 6px 10px;
+      border: 0.5px solid var(--border); border-radius: 7px; outline: none;
+      font-family: 'Segoe UI', sans-serif; background: var(--bg-surface2);
+      color: var(--text-muted); cursor: pointer; min-width: 140px;
+    }
+    .template-select:focus { border-color: var(--accent); }
+
+    /* ── Context box ── */
+    .context-toggle-row { display: flex; align-items: center; }
+    .btn-add-context {
+      font-size: 0.78rem; font-weight: 500; color: var(--text-dim);
+      background: none; border: 0.5px solid var(--border);
+      border-radius: 6px; padding: 5px 12px; cursor: pointer;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+    .btn-add-context:hover { color: var(--accent); border-color: var(--accent-border); background: var(--accent-bg); }
+    .btn-add-context.open  { color: var(--accent); border-color: var(--accent-border); background: var(--accent-bg); }
+    .context-panel {
+      background: var(--bg-surface2); border-radius: 10px;
+      border: 0.5px solid var(--border);
+      overflow: hidden; max-height: 0; transition: max-height 0.25s ease;
+    }
+    .context-panel.open { max-height: 200px; }
+    .context-inner { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .context-label {
+      font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-dim);
+    }
+    .context-input-row { display: flex; gap: 8px; align-items: flex-start; }
+    .context-textarea {
+      flex: 1; font-size: 0.85rem; padding: 8px 10px; min-height: 60px;
+      border: 0.5px solid var(--border); border-radius: 6px; outline: none;
+      font-family: 'Segoe UI', sans-serif; color: var(--text-muted);
+      background: var(--bg-app); resize: vertical; line-height: 1.5;
+      transition: border-color 0.2s;
+    }
+    .context-textarea:focus { border-color: var(--accent); }
+    .context-textarea::placeholder { color: var(--text-dim); font-style: italic; }
+    .btn-context-dictate {
+      padding: 7px 12px; font-size: 0.78rem; font-weight: 500;
+      border-radius: 6px; border: 0.5px solid var(--border);
+      background: var(--bg-surface); color: var(--text-dim);
+      cursor: pointer; white-space: nowrap; transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .btn-context-dictate:hover { background: var(--bg-control); color: var(--text-muted); }
+    .btn-context-dictate.recording {
+      background: var(--red-bg); color: var(--red);
+      border-color: var(--red-border);
+    }
+
+    /* ── Warning messages ── */
+    .warn-msg {
+      display: none; font-size: 0.8rem; color: var(--amber);
+      background: var(--amber-bg); border: 0.5px solid var(--amber-border);
+      border-radius: 6px; padding: 8px 12px; text-align: center;
+    }
+
+    /* ── Browser warning ── */
+    #browser-warning {
+      background: var(--amber-bg); border: 0.5px solid var(--amber-border); border-radius: 8px;
+      padding: 12px 16px; font-size: 0.85rem; color: var(--amber); display: none;
+    }
+
+    /* ══════════════════════════════════════════
+       MEETING / CALL — specific styles
+    ══════════════════════════════════════════ */
+
+    .meeting-device-row {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--bg-surface); border-radius: 10px; padding: 12px 16px;
+      border: 0.5px solid var(--border);
+    }
+    .meeting-device-label { font-size: 0.8rem; font-weight: 500; color: var(--text-muted); white-space: nowrap; }
+
+    .meeting-select {
+      flex: 1; font-size: 0.85rem; padding: 7px 10px;
+      border: 0.5px solid var(--border); border-radius: 7px; outline: none;
+      font-family: 'Segoe UI', sans-serif; background: var(--bg-surface2);
+      color: var(--text-muted); cursor: pointer;
+    }
+
+    .level-card {
+      background: var(--bg-surface); border-radius: 10px; padding: 14px 18px;
+      border: 0.5px solid var(--border); display: flex; flex-direction: column; gap: 8px;
+    }
+    .level-track-row { display: flex; align-items: center; gap: 12px; }
+    .level-mic-icon {
+      font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-dim); white-space: nowrap;
+    }
+    .level-track { flex: 1; height: 4px; background: var(--bg-control); border-radius: 2px; overflow: hidden; }
+    #level-bar { height: 100%; width: 0%; background: var(--accent); border-radius: 2px; transition: width 0.05s; }
+    .level-caption { font-size: 0.75rem; color: var(--text-dim); text-align: center; line-height: 1.4; }
+
+    /* Whisper loading state inside transcript panel */
+    .whisper-loading {
+      flex: 1; display: none; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px; color: var(--text-dim);
+    }
+    .whisper-loading p { font-size: 0.85rem; font-weight: 500; }
+  </style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <h1>AI Notetaker</h1>
+    <div class="header-right">
+      <span>v2.2.0</span>
+      <div class="menu-container">
+        <button id="btn-menu">&#8943;</button>
+        <div class="menu-dropdown" id="menu-dropdown">
+          <button class="menu-item" id="menu-load-md">Load .md</button>
+          <button class="menu-item" id="menu-save-md" disabled>Save As .md</button>
+          <button class="menu-item" id="menu-export-txt" disabled>Export .txt</button>
+          <div class="menu-divider"></div>
+          <button class="menu-item" id="menu-setup">Setup Guide</button>
+          <div class="menu-divider"></div>
+          <button class="menu-item" id="menu-settings">Settings</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mode selector -->
+  <div class="mode-selector">
+    <button class="mode-tab" data-mode="quick">Quick Note</button>
+    <button class="mode-tab" data-mode="meeting">Meeting / Call</button>
+  </div>
+
+  <!-- Settings panel -->
+  <div class="settings-panel" id="settings-panel">
+    <div class="settings-inner">
+      <div class="settings-title">API Keys</div>
+      <div class="settings-row">
+        <label for="anthropic-key-input">Anthropic API Key <em>(for AI Notes)</em></label>
+        <input id="anthropic-key-input" class="settings-key-input" type="password"
+               placeholder="sk-ant-..." autocomplete="off" spellcheck="false" />
+        <span class="key-saved" id="anthropic-key-saved">✓ Saved</span>
+      </div>
+      <div class="settings-row">
+        <label for="openai-key-input">OpenAI API Key <em>(for Whisper — Meeting / Call mode)</em></label>
+        <input id="openai-key-input" class="settings-key-input" type="password"
+               placeholder="sk-..." autocomplete="off" spellcheck="false" />
+        <span class="key-saved" id="openai-key-saved">✓ Saved</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Setup Guide panel -->
+  <div class="settings-panel" id="setup-panel">
+    <div class="settings-inner" style="max-width: 100%;">
+
+      <div class="settings-title">Setup Guide — Getting Your API Keys</div>
+
+      <!-- Anthropic -->
+      <div class="setup-section">
+        <div class="setup-step-label">Step 1 — Anthropic API Key <span class="setup-chip">Required for AI Notes</span></div>
+        <div class="setup-body">
+          <p>This key lets the app generate structured notes (action items, decisions, topics) from your transcript.</p>
+          <ol>
+            <li>Go to <strong>console.anthropic.com</strong> and sign in or create a free account.</li>
+            <li>Click <strong>API Keys</strong> in the left sidebar.</li>
+            <li>Click <strong>Create Key</strong> — give it any name (e.g. "AI Notetaker").</li>
+            <li>Copy the key — it starts with <code>sk-ant-</code></li>
+            <li>Open <strong>Settings</strong> above and paste it into the <em>Anthropic API Key</em> field.</li>
+          </ol>
+          <div class="setup-note">Cost: a few cents per session. New accounts include free credits to get started.</div>
+        </div>
+      </div>
+
+      <!-- OpenAI -->
+      <div class="setup-section">
+        <div class="setup-step-label">Step 2 — OpenAI API Key <span class="setup-chip">Required for Meeting / Call mode</span></div>
+        <div class="setup-body">
+          <p>This key powers Whisper, which transcribes your recorded audio. Only needed if you use Meeting / Call mode.</p>
+          <ol>
+            <li>Go to <strong>platform.openai.com</strong> and sign in or create a free account.</li>
+            <li>Click your profile icon (top right) → <strong>API Keys</strong>.</li>
+            <li>Click <strong>Create new secret key</strong> — give it any name.</li>
+            <li>Copy the key — it starts with <code>sk-</code></li>
+            <li>Open <strong>Settings</strong> above and paste it into the <em>OpenAI API Key</em> field.</li>
+          </ol>
+          <div class="setup-note">Cost: ~$0.006 per minute of audio. A 20-minute call costs about 12 cents.</div>
+        </div>
+      </div>
+
+      <!-- Which mode -->
+      <div class="setup-section">
+        <div class="setup-step-label">Which mode should I use?</div>
+        <div class="setup-body">
+          <p><strong>Quick Note</strong> — uses your browser's built-in speech recognition. Free, no key needed. Best for solo voice memos or dictation in a quiet environment. Chrome only.</p>
+          <p style="margin-top: 8px;"><strong>Meeting / Call</strong> — records audio and sends it to OpenAI Whisper for transcription. Handles accents, crosstalk, and longer recordings much better. Requires an OpenAI key.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Browser warning -->
+  <div id="browser-warning">
+    Your browser doesn't support the Web Speech API.
+    Please open this file in <strong>Google Chrome</strong> for Quick Note transcription to work.
+  </div>
+
+  <!-- ══════════════════════════════════════
+       QUICK NOTE MODE
+  ══════════════════════════════════════ -->
+  <div id="mode-quick">
+
+    <div id="status" class="status-badge">
+      <div class="status-dot"></div>
+      <span id="status-text">Ready</span>
+    </div>
+
+    <div class="controls">
+      <button id="btn-record">Record</button>
+      <button id="btn-pause" disabled>Pause</button>
+      <button id="btn-generate" disabled>Generate Notes</button>
+      <div class="controls-spacer"></div>
+      <div class="controls-right">
+        <button id="btn-stop" disabled>Stop</button>
+        <button id="btn-clear">Clear</button>
+      </div>
+    </div>
+
+    <!-- Template & style selectors -->
+    <div class="template-row">
+      <label>Template</label>
+      <select id="qn-template-select" class="template-select">
+        <option value="general">General Meeting</option>
+        <option value="realestate">Real Estate Call</option>
+        <option value="loan">Loan Inquiry</option>
+        <option value="intake">Client Intake</option>
+        <option value="oneone">1:1 / Coaching Call</option>
+        <option value="brainstorm">Brainstorm</option>
+      </select>
+      <label>Style</label>
+      <select id="qn-style-select" class="template-select">
+        <option value="bullets">Bullet Points</option>
+        <option value="prose">Prose / Narrative</option>
+        <option value="exec">Executive Summary</option>
+      </select>
+    </div>
+
+    <div id="no-key-msg" class="warn-msg">Enter your Anthropic API key in Settings to generate notes.</div>
+
+    <div class="panels">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-label">Live Transcript</div>
+          <div class="panel-header-right">
+            <span id="edit-hint" class="edit-hint">Click to edit</span>
+            <button class="btn-small" id="btn-collapse-transcript">Collapse</button>
+            <button class="btn-small" id="btn-copy-transcript" disabled>Copy</button>
+          </div>
+        </div>
+        <div id="transcript"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-label">AI Notes</div>
+          <div class="panel-header-right">
+            <span id="notes-edit-hint" class="edit-hint">Click to edit</span>
+            <button class="btn-small" id="btn-copy-notes" disabled>Copy</button>
+          </div>
+        </div>
+        <div class="notes-placeholder" id="notes-placeholder">
+          <div class="icon"></div>
+          <p>Record a conversation, then click<br><strong>Generate Notes</strong> to summarise.</p>
+        </div>
+        <div class="notes-loading" id="notes-loading">
+          <div class="spinner"></div><p>Generating notes…</p>
+        </div>
+        <div class="notes-output" id="notes-output"></div>
+      </div>
+    </div>
+
+
+  </div><!-- /mode-quick -->
+
+  <!-- ══════════════════════════════════════
+       MEETING / CALL MODE
+  ══════════════════════════════════════ -->
+  <div id="mode-meeting">
+
+    <!-- Input device selector -->
+    <div class="meeting-device-row">
+      <span class="meeting-device-label">Input Device</span>
+      <select id="meeting-mic-select" class="meeting-select">
+        <option value="">— loading devices —</option>
+      </select>
+    </div>
+
+    <!-- Template & style selectors -->
+    <div class="template-row">
+      <label>Template</label>
+      <select id="m-template-select" class="template-select">
+        <option value="general">General Meeting</option>
+        <option value="realestate">Real Estate Call</option>
+        <option value="loan">Loan Inquiry</option>
+        <option value="intake">Client Intake</option>
+        <option value="oneone">1:1 / Coaching Call</option>
+        <option value="brainstorm">Brainstorm</option>
+      </select>
+      <label>Style</label>
+      <select id="m-style-select" class="template-select">
+        <option value="bullets">Bullet Points</option>
+        <option value="prose">Prose / Narrative</option>
+        <option value="exec">Executive Summary</option>
+      </select>
+    </div>
+
+    <!-- Context box -->
+    <div class="context-toggle-row">
+      <button class="btn-add-context" id="btn-add-context">+ Add Context</button>
+    </div>
+    <div class="context-panel" id="context-panel">
+      <div class="context-inner">
+        <div class="context-label">Call Context — advise the AI before generating notes</div>
+        <div class="context-input-row">
+          <textarea
+            id="context-textarea"
+            class="context-textarea"
+            placeholder="e.g. DSCR loan inquiry, borrower has 3 investment properties, looking at a 4-unit in Phoenix..."
+          ></textarea>
+          <button class="btn-context-dictate" id="btn-context-dictate">Dictate</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Missing OpenAI key notice -->
+    <div id="m-no-openai-msg" class="warn-msg">
+      Add your OpenAI API key in Settings to use Meeting / Call mode.
+    </div>
+
+    <!-- Status -->
+    <div id="m-status" class="status-badge">
+      <div class="status-dot"></div>
+      <span id="m-status-text">Ready</span>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+      <button id="m-btn-record">Record</button>
+      <button id="m-btn-pause" disabled>Pause</button>
+      <button id="m-btn-generate" disabled>Generate Notes</button>
+      <button id="m-btn-retry" style="display:none;">Retry Transcription</button>
+      <div class="controls-spacer"></div>
+      <div class="controls-right">
+        <button id="m-btn-stop" disabled>Stop</button>
+        <button id="m-btn-clear">Clear</button>
+      </div>
+    </div>
+
+    <div id="m-no-anthropic-msg" class="warn-msg">Enter your Anthropic API key in Settings to generate notes.</div>
+
+    <!-- Level indicator -->
+    <div class="level-card">
+      <div class="level-track-row">
+        <span class="level-mic-icon">Input Level</span>
+        <div class="level-track"><div id="level-bar"></div></div>
+      </div>
+      <div class="level-caption" id="level-caption">Ready — select a device and click Record</div>
+    </div>
+
+    <!-- Two panels -->
+    <div class="panels">
+
+      <!-- Left: transcript panel -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-label">Transcript</div>
+          <div class="panel-header-right">
+            <span id="m-edit-hint" class="edit-hint">Click to edit</span>
+            <button class="btn-small" id="m-btn-collapse-transcript">Collapse</button>
+            <button class="btn-small" id="m-btn-copy-transcript" disabled>Copy</button>
+          </div>
+        </div>
+
+        <!-- Idle state -->
+        <div class="notes-placeholder" id="m-transcript-idle">
+          <div class="icon"></div>
+          <p>Select an input device, then click <strong>Record</strong> to begin.</p>
+        </div>
+
+        <!-- Whisper loading state -->
+        <div class="whisper-loading" id="m-transcript-loading">
+          <div class="spinner"></div>
+          <p>Transcribing audio… this may take a few seconds</p>
+        </div>
+
+        <!-- Transcript text -->
+        <div id="m-transcript"></div>
+
+        <!-- Error state -->
+        <div class="transcript-error" id="m-transcript-error"></div>
+      </div>
+
+      <!-- Right: AI notes panel -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-label">AI Notes</div>
+          <div class="panel-header-right">
+            <span id="m-notes-edit-hint" class="edit-hint">Click to edit</span>
+            <button class="btn-small" id="m-btn-copy-notes" disabled>Copy</button>
+          </div>
+        </div>
+        <div class="notes-placeholder" id="m-notes-placeholder">
+          <div class="icon"></div>
+          <p>Transcription will appear after recording stops.<br>Then click <strong>Generate Notes</strong>.</p>
+        </div>
+        <div class="notes-loading" id="m-notes-loading">
+          <div class="spinner"></div><p>Generating notes…</p>
+        </div>
+        <div class="notes-output" id="m-notes-output"></div>
+      </div>
+
+    </div>
+
+
+  </div><!-- /mode-meeting -->
+
+</div><!-- /app -->
+
+<!-- Hidden file input for Load Session -->
+<input type="file" id="file-load-md" accept=".md" style="display:none;" />
+
+<script>
+  // ═══════════════════════════════════════════
+  //  SHARED
+  // ═══════════════════════════════════════════
+
+  const LS_ANTHROPIC  = 'anthropic_api_key';
+  const LS_OPENAI     = 'openai_api_key';
+  const LS_MODE       = 'ainotetaker_mode';
+  const LS_MIC_DEVICE = 'meeting_mic_device_id';
+
+  // Migrate old key name
+  if (!localStorage.getItem(LS_ANTHROPIC) && localStorage.getItem('ainotetaker_api_key')) {
+    localStorage.setItem(LS_ANTHROPIC, localStorage.getItem('ainotetaker_api_key'));
+  }
+
+  const getAnthropicKey = () => localStorage.getItem(LS_ANTHROPIC) || '';
+  const getOpenAIKey    = () => localStorage.getItem(LS_OPENAI)    || '';
+
+  // ── Menu ──
+  const btnMenu        = document.getElementById('btn-menu');
+  const menuDropdown   = document.getElementById('menu-dropdown');
+  const menuLoadMd     = document.getElementById('menu-load-md');
+  const menuSaveMd     = document.getElementById('menu-save-md');
+  const menuExportTxt  = document.getElementById('menu-export-txt');
+  const menuSetupItem  = document.getElementById('menu-setup');
+  const menuSettingsItem = document.getElementById('menu-settings');
+
+  // ── Settings ──
+  const settingsPanel     = document.getElementById('settings-panel');
+  const anthropicKeyInput = document.getElementById('anthropic-key-input');
+  const openaiKeyInput    = document.getElementById('openai-key-input');
+  const anthropicKeySaved = document.getElementById('anthropic-key-saved');
+  const openaiKeySaved    = document.getElementById('openai-key-saved');
+
+  anthropicKeyInput.value = getAnthropicKey();
+  openaiKeyInput.value    = getOpenAIKey();
+  refreshKeySavedIndicators();
+
+  anthropicKeyInput.addEventListener('input', () => {
+    localStorage.setItem(LS_ANTHROPIC, anthropicKeyInput.value.trim());
+    refreshKeySavedIndicators();
+    refreshGenerateBtn();
+    refreshMGenerateBtn();
+  });
+
+  openaiKeyInput.addEventListener('input', () => {
+    localStorage.setItem(LS_OPENAI, openaiKeyInput.value.trim());
+    refreshKeySavedIndicators();
+    refreshMRecordBtn();
+  });
+
+  function refreshKeySavedIndicators() {
+    anthropicKeySaved.style.display = getAnthropicKey() ? 'inline' : 'none';
+    openaiKeySaved.style.display    = getOpenAIKey()    ? 'inline' : 'none';
+  }
+
+  const setupPanel = document.getElementById('setup-panel');
+
+  // ── Menu open / close ──
+  function closeMenu() {
+    menuDropdown.classList.remove('open');
+    btnMenu.classList.remove('open');
+  }
+
+  btnMenu.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isOpen = menuDropdown.classList.toggle('open');
+    btnMenu.classList.toggle('open', isOpen);
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!menuDropdown.contains(e.target) && e.target !== btnMenu) closeMenu();
+  });
+
+  // ── Menu: Settings ──
+  menuSettingsItem.addEventListener('click', () => {
+    setupPanel.classList.remove('open');
+    menuSetupItem.classList.remove('active');
+    const isOpen = settingsPanel.classList.toggle('open');
+    menuSettingsItem.classList.toggle('active', isOpen);
+    closeMenu();
+  });
+
+  // ── Menu: Setup Guide ──
+  menuSetupItem.addEventListener('click', () => {
+    settingsPanel.classList.remove('open');
+    menuSettingsItem.classList.remove('active');
+    const isOpen = setupPanel.classList.toggle('open');
+    menuSetupItem.classList.toggle('active', isOpen);
+    closeMenu();
+  });
+
+  // ── Mode selector ──
+  const modeTabs    = document.querySelectorAll('.mode-tab');
+  const modeQuick   = document.getElementById('mode-quick');
+  const modeMeeting = document.getElementById('mode-meeting');
+
+  applyMode(localStorage.getItem(LS_MODE) || 'quick');
+
+  modeTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const mode = tab.dataset.mode;
+      if (mode === getCurrentMode()) return;
+      if (getCurrentMode() === 'quick'   && isRecording)  endSession();
+      if (getCurrentMode() === 'meeting' && mIsRecording) meetingEndSession();
+      localStorage.setItem(LS_MODE, mode);
+      applyMode(mode);
+      refreshMenuExportItems();
+      if (mode === 'meeting') populateMicDevices();
+    });
+  });
+
+  function getCurrentMode() { return localStorage.getItem(LS_MODE) || 'quick'; }
+
+  // ── Enable/disable Save As .md and Export .txt based on current mode content ──
+  function refreshMenuExportItems() {
+    const mode = getCurrentMode();
+    const hasNotes = mode === 'quick'
+      ? (notesOutput.style.display !== 'none' && notesOutput.innerHTML.trim().length > 0)
+      : (mNotesOutput.style.display !== 'none' && mNotesOutput.innerHTML.trim().length > 0);
+    menuSaveMd.disabled    = !hasNotes;
+    menuExportTxt.disabled = !hasNotes;
+  }
+
+  function applyMode(mode) {
+    modeTabs.forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+    modeQuick.style.display   = mode === 'quick'   ? 'contents' : 'none';
+    modeMeeting.style.display = mode === 'meeting' ? 'contents' : 'none';
+  }
+
+  // ── Shared note renderer ──
+  function renderNotes(text, outputEl) {
+    const lines = text.split('\n'); let html = '';
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) { html += '<br>'; continue; }
+      if      (/^#{1,3}\s/.test(line))       html += `<h3>${line.replace(/^#{1,3}\s*/, '')}</h3>`;
+      else if (/^\*\*(.+)\*\*$/.test(line))  html += `<h3>${line.replace(/\*\*/g, '')}</h3>`;
+      else if (/^\d+\.\s+[A-Z ]/.test(line)) html += `<h3>${line.replace(/^\d+\.\s+/, '')}</h3>`;
+      else if (/^[-*•]\s/.test(line))        html += `<ul><li>${line.replace(/^[-*•]\s/, '')}</li></ul>`;
+      else                                    html += `<p>${line}</p>`;
+    }
+    outputEl.innerHTML = html.replace(/<\/ul>\s*<ul>/g, '');
+  }
+
+  // ── Shared copy helper ──
+  function copyText(text, btn) {
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = 'Copied!'; btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1800);
+    });
+  }
+
+  // ═══════════════════════════════════════════
+  //  PROMPT BUILDER
+  // ═══════════════════════════════════════════
+  function buildSystemPrompt(template, style) {
+    // ── Output style instructions ──
+    const styleInstructions = {
+      bullets: `Format your output using tight bullet points. No blank lines between bullets or sections. Each bullet on its own line. Section headings in uppercase.`,
+      prose:   `Format your output as short, dense paragraphs — one paragraph per section. No bullet points. No blank lines between sections. Section headings in uppercase followed by a colon.`,
+      exec:    `Format your output as an executive summary only. Maximum 5 bullet points total covering the most critical information across all sections. No section headings. No blank lines between bullets. Be ruthlessly concise.`
+    };
+    const fmt = styleInstructions[style] || styleInstructions.bullets;
+    // ── Shared rules applied to all templates ──
+    const sharedRules = `
+Rules:
+- No blank lines between bullet points or between sections
+- No filler phrases or padding
+- No emojis
+- If a section has nothing to report, write "None identified" on one line
+- Be concise — every word must earn its place
+- Section order must be followed exactly as specified`;
+    // ── Template-specific prompts ──
+    const templates = {
+      general: `You are a professional meeting assistant. Extract and format the following sections in this exact order:
+1. TOPICS DISCUSSED — main subjects covered
+2. KEY DECISIONS — choices made or agreed upon
+3. ACTION ITEMS — concrete tasks with owners if mentioned
+${sharedRules}
+${fmt}`,
+      realestate: `You are a professional real estate call analyst. Extract and format the following sections in this exact order:
+1. TOPICS DISCUSSED — subjects and properties discussed
+2. PROPERTY DETAILS — address, type, price, condition, key characteristics
+3. FINANCING DISCUSSED — loan type, terms, rates, or financing strategy mentioned
+4. CLIENT MOTIVATION — what the client wants, timeline, and why they're moving
+5. KEY DECISIONS — choices made or agreed upon
+6. ACTION ITEMS — concrete next steps with owners if mentioned
+${sharedRules}
+${fmt}`,
+      loan: `You are a professional loan intake analyst. Extract and format the following sections in this exact order:
+1. TOPICS DISCUSSED — subjects covered in the call
+2. LOAN DETAILS — loan type, amount, rate, term, and purpose
+3. PROPERTY DETAILS — address, type, value, and condition
+4. BORROWER PROFILE — name, background, and stated goals
+5. LIQUIDITY — cash reserves, down payment, or liquid assets discussed
+6. CREDIT — credit score, credit history, or credit concerns mentioned
+7. EXPERIENCE — borrower's real estate or investment experience mentioned
+8. QUALIFICATION FLAGS — any potential issues or lender concerns
+9. KEY DECISIONS — choices made or agreed upon
+10. ACTION ITEMS — concrete next steps with owners if mentioned
+${sharedRules}
+${fmt}`,
+      intake: `You are a professional client intake analyst. Extract and format the following sections in this exact order:
+1. TOPICS DISCUSSED — subjects covered
+2. CLIENT BACKGROUND — who they are, their situation, relevant history
+3. GOALS — what they are trying to achieve
+4. PAIN POINTS — challenges, frustrations, or blockers mentioned
+5. KEY DECISIONS — choices made or agreed upon
+6. ACTION ITEMS — concrete next steps with owners if mentioned
+${sharedRules}
+${fmt}`,
+      oneone: `You are a professional 1:1 meeting analyst. Extract and format the following sections in this exact order:
+1. TOPICS DISCUSSED — subjects covered
+2. GOALS — objectives or priorities discussed
+3. BLOCKERS — challenges, obstacles, or concerns raised
+4. COMMITMENTS MADE — specific commitments or promises from either party
+5. KEY DECISIONS — choices made or agreed upon
+6. ACTION ITEMS — concrete next steps with owners if mentioned
+${sharedRules}
+${fmt}`,
+      brainstorm: `You are a professional brainstorm facilitator. Extract and format the following sections in this exact order:
+1. TOPICS DISCUSSED — subjects and themes explored
+2. IDEAS GENERATED — all ideas surfaced, grouped by theme if possible
+3. TOP CANDIDATES — ideas that received the most attention or enthusiasm
+4. KEY DECISIONS — any decisions made during the session
+5. ACTION ITEMS — concrete next steps with owners if mentioned
+${sharedRules}
+${fmt}`
+    };
+    return templates[template] || templates.general;
+  }
+
+  // ═══════════════════════════════════════════
+  //  QUICK NOTE MODE
+  // ═══════════════════════════════════════════
+
+  const btnRecord              = document.getElementById('btn-record');
+  const btnPause               = document.getElementById('btn-pause');
+  const btnStop                = document.getElementById('btn-stop');
+  const btnClear               = document.getElementById('btn-clear');
+  const btnGenerate            = document.getElementById('btn-generate');
+  const btnCopyTranscript      = document.getElementById('btn-copy-transcript');
+  const btnCopyNotes           = document.getElementById('btn-copy-notes');
+  const btnCollapseTranscript  = document.getElementById('btn-collapse-transcript');
+  const statusEl               = document.getElementById('status');
+  const statusTxt              = document.getElementById('status-text');
+  const transcriptEl           = document.getElementById('transcript');
+  const transcriptPanel        = transcriptEl.closest('.panel');
+  const editHint               = document.getElementById('edit-hint');
+  const warning                = document.getElementById('browser-warning');
+  const noKeyMsg               = document.getElementById('no-key-msg');
+  const notesPlaceholder       = document.getElementById('notes-placeholder');
+  const notesLoading           = document.getElementById('notes-loading');
+  const notesOutput            = document.getElementById('notes-output');
+  const notesEditHint          = document.getElementById('notes-edit-hint');
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) { warning.style.display = 'block'; btnRecord.disabled = true; }
+
+  let recognition = null;
+  let committed   = '';
+  let isRecording = false;
+  let isPaused    = false;
+
+  function buildRecognizer() {
+    const r = new SpeechRecognition();
+    r.continuous = true; r.interimResults = true; r.lang = 'en-US';
+    r.onresult = (event) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const text = event.results[i][0].transcript;
+        if (event.results[i].isFinal) committed += text + ' ';
+        else                          interim = text;
+      }
+      transcriptEl.innerHTML = committed + (interim ? `<em style="color:#555">${interim}</em>` : '');
+      transcriptEl.scrollTop = transcriptEl.scrollHeight;
+    };
+    r.onend   = () => { if (isRecording && !isPaused) r.start(); };
+    r.onerror = (e) => { if (e.error === 'not-allowed') { setQNStatus('Mic access denied', 'idle'); endSession(); } };
+    return r;
+  }
+
+  function startRecording() {
+    committed = ''; transcriptEl.innerHTML = '';
+    isRecording = true; isPaused = false;
+    setQNTranscriptEditable(false);
+    setQNNotesEditable(false);
+    btnGenerate.style.display = 'none'; noKeyMsg.style.display = 'none';
+    btnCopyTranscript.disabled = true; btnCopyNotes.disabled = true;
+    showQNNotesPanel('placeholder');
+    refreshMenuExportItems();
+    recognition = buildRecognizer(); recognition.start();
+    setQNStatus('Recording…', 'recording');
+    btnRecord.disabled = true; btnPause.disabled = false;
+    btnPause.textContent = 'Pause'; btnPause.classList.remove('active');
+    btnStop.disabled = false;
+  }
+
+  function togglePause() {
+    if (!isPaused) {
+      isPaused = true;
+      if (recognition) { recognition.stop(); recognition = null; }
+      setQNStatus('Paused', 'paused');
+      btnPause.textContent = 'Resume'; btnPause.classList.add('active');
+    } else {
+      isPaused = false;
+      recognition = buildRecognizer(); recognition.start();
+      setQNStatus('Recording…', 'recording');
+      btnPause.textContent = 'Pause'; btnPause.classList.remove('active');
+    }
+  }
+
+  function stopRecording() {
+    endSession(); setQNStatus('Stopped', 'idle');
+    if (committed.trim().length > 0) {
+      setQNTranscriptEditable(true);
+      btnCopyTranscript.disabled = false;
+      btnGenerate.style.display  = 'inline-block';
+      refreshGenerateBtn();
+    }
+  }
+
+  function endSession() {
+    isRecording = false; isPaused = false;
+    if (recognition) { recognition.stop(); recognition = null; }
+    btnRecord.disabled = false; btnPause.disabled = true;
+    btnPause.textContent = 'Pause'; btnPause.classList.remove('active');
+    btnStop.disabled = true;
+  }
+
+  function setQNTranscriptEditable(on) {
+    if (on) {
+      transcriptEl.setAttribute('contenteditable', 'true');
+      transcriptEl.classList.add('editable'); editHint.style.display = 'inline';
+    } else {
+      transcriptEl.removeAttribute('contenteditable');
+      transcriptEl.classList.remove('editable'); editHint.style.display = 'none';
+    }
+  }
+
+  function setQNNotesEditable(on) {
+    if (on) {
+      notesOutput.setAttribute('contenteditable', 'true');
+      notesOutput.classList.add('editable');
+      notesEditHint.style.display = 'inline';
+    } else {
+      notesOutput.removeAttribute('contenteditable');
+      notesOutput.classList.remove('editable');
+      notesEditHint.style.display = 'none';
+    }
+  }
+
+  function setQNStatus(text, state) {
+    statusTxt.textContent = text;
+    statusEl.classList.toggle('recording', state === 'recording');
+    statusEl.classList.toggle('paused',    state === 'paused');
+  }
+
+  function refreshGenerateBtn() {
+    const hasKey = getAnthropicKey().length > 0;
+    btnGenerate.disabled = !hasKey;
+    if (btnGenerate.style.display !== 'none') noKeyMsg.style.display = hasKey ? 'none' : 'block';
+  }
+
+  function showQNNotesPanel(state) {
+    notesPlaceholder.style.display = state === 'placeholder' ? 'flex'  : 'none';
+    notesLoading.style.display     = state === 'loading'     ? 'flex'  : 'none';
+    notesOutput.style.display      = state === 'output'      ? 'block' : 'none';
+  }
+
+  function qnHasContent() {
+    return transcriptEl.innerText.trim().length > 0 || notesOutput.innerText.trim().length > 0;
+  }
+
+  async function generateNotes() {
+    const apiKey = getAnthropicKey();
+    const text   = transcriptEl.innerText.trim();
+    if (!apiKey || !text) return;
+    showQNNotesPanel('loading');
+    btnGenerate.disabled = true; btnCopyNotes.disabled = true;
+    noKeyMsg.style.display = 'none';
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json', 'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6', max_tokens: 1024,
+          system: buildSystemPrompt(
+            document.getElementById('qn-template-select').value,
+            document.getElementById('qn-style-select').value
+          ),
+          messages: [{ role: 'user', content: `Here is the meeting transcript:\n\n${text}` }]
+        })
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e?.error?.message || `API error ${res.status}`); }
+      const data = await res.json();
+      renderNotes(data?.content?.[0]?.text || '', notesOutput);
+      showQNNotesPanel('output');
+      setQNNotesEditable(true);
+      btnCopyNotes.disabled = false;
+      refreshMenuExportItems();
+    } catch (err) {
+      notesOutput.innerHTML = `<p style="color:#e24b4a">${err.message}</p>`;
+      showQNNotesPanel('output');
+    } finally { btnGenerate.disabled = false; }
+  }
+
+  function downloadQNTxt() {
+    const now = new Date(); const pad = n => String(n).padStart(2, '0');
+    const fn = `notes_${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}.txt`;
+    const body = ['AI NOTETAKER EXPORT','===================','','TRANSCRIPT','----------',
+      transcriptEl.innerText.trim(),'','AI NOTES','--------',notesOutput.innerText.trim()].join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([body], { type: 'text/plain' }));
+    a.download = fn; a.click();
+  }
+
+  function downloadQNMd() {
+    const now = new Date(); const pad = n => String(n).padStart(2, '0');
+    const dateStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+    const timeStr = `${pad(now.getHours())}-${pad(now.getMinutes())}`;
+    const fn = `notes_${dateStr}_${timeStr}.md`;
+    const body = [
+      '# AI Notetaker Session', '',
+      '## Date',
+      now.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+      '',
+      '## Transcript',
+      transcriptEl.innerText.trim(),
+      '',
+      '## AI Notes',
+      notesOutput.innerText.trim()
+    ].join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([body], { type: 'text/markdown' }));
+    a.download = fn; a.click();
+  }
+
+  btnRecord.addEventListener('click', startRecording);
+  btnPause.addEventListener('click', togglePause);
+  btnStop.addEventListener('click', stopRecording);
+  btnGenerate.addEventListener('click', generateNotes);
+  btnCopyTranscript.addEventListener('click', () => copyText(transcriptEl.innerText.trim(), btnCopyTranscript));
+  btnCopyNotes.addEventListener('click', () => copyText(notesOutput.innerText.trim(), btnCopyNotes));
+
+  btnCollapseTranscript.addEventListener('click', () => {
+    const isCollapsed = transcriptEl.classList.toggle('collapsed');
+    transcriptPanel.classList.toggle('transcript-collapsed', isCollapsed);
+    btnCollapseTranscript.textContent = isCollapsed ? 'Expand' : 'Collapse';
+  });
+
+  btnClear.addEventListener('click', () => {
+    if (qnHasContent() && !confirm('This will clear the transcript and notes. Continue?')) return;
+    if (isRecording) endSession();
+    committed = ''; transcriptEl.innerHTML = '';
+    transcriptEl.classList.remove('collapsed');
+    transcriptPanel.classList.remove('transcript-collapsed');
+    btnCollapseTranscript.textContent = 'Collapse';
+    setQNTranscriptEditable(false);
+    setQNNotesEditable(false);
+    btnGenerate.style.display = 'none'; noKeyMsg.style.display = 'none';
+    btnCopyTranscript.disabled = true; btnCopyNotes.disabled = true;
+    notesOutput.innerHTML = '';
+    showQNNotesPanel('placeholder');
+    refreshMenuExportItems();
+    setQNStatus('Ready', 'idle');
+  });
+
+  // ═══════════════════════════════════════════
+  //  MEETING / CALL MODE
+  // ═══════════════════════════════════════════
+
+  const mMicSelect              = document.getElementById('meeting-mic-select');
+  const mNoOpenAIMsg            = document.getElementById('m-no-openai-msg');
+  const mStatusEl               = document.getElementById('m-status');
+  const mStatusTxt              = document.getElementById('m-status-text');
+  const mBtnRecord              = document.getElementById('m-btn-record');
+  const mBtnPause               = document.getElementById('m-btn-pause');
+  const mBtnGenerate            = document.getElementById('m-btn-generate');
+  const mBtnStop                = document.getElementById('m-btn-stop');
+  const mBtnClear               = document.getElementById('m-btn-clear');
+  const mNoAnthropicMsg         = document.getElementById('m-no-anthropic-msg');
+  const levelBar                = document.getElementById('level-bar');
+  const levelCaption            = document.getElementById('level-caption');
+  const mTranscriptIdle         = document.getElementById('m-transcript-idle');
+  const mTranscriptLoading      = document.getElementById('m-transcript-loading');
+  const mTranscriptEl           = document.getElementById('m-transcript');
+  const mTranscriptPanel        = mTranscriptEl.closest('.panel');
+  const mTranscriptError        = document.getElementById('m-transcript-error');
+  const mEditHint               = document.getElementById('m-edit-hint');
+  const mBtnCopyTranscript      = document.getElementById('m-btn-copy-transcript');
+  const mBtnCollapseTranscript  = document.getElementById('m-btn-collapse-transcript');
+  const mNotesPlaceholder       = document.getElementById('m-notes-placeholder');
+  const mNotesLoading           = document.getElementById('m-notes-loading');
+  const mNotesOutput            = document.getElementById('m-notes-output');
+  const mNotesEditHint          = document.getElementById('m-notes-edit-hint');
+  const mBtnCopyNotes           = document.getElementById('m-btn-copy-notes');
+  const mBtnRetry               = document.getElementById('m-btn-retry');
+
+  // Template & style state
+  let mCurrentTemplate = 'general';
+  let mCurrentStyle    = 'bullets';
+
+  // ── Context box ──
+  const btnAddContext      = document.getElementById('btn-add-context');
+  const contextPanel       = document.getElementById('context-panel');
+  const contextTextarea    = document.getElementById('context-textarea');
+  const btnContextDictate  = document.getElementById('btn-context-dictate');
+  btnAddContext.addEventListener('click', () => {
+    const isOpen = contextPanel.classList.toggle('open');
+    btnAddContext.classList.toggle('open', isOpen);
+    btnAddContext.textContent = isOpen ? '− Context' : '+ Add Context';
+    if (!isOpen) contextTextarea.value = ''; // clear on close
+  });
+  // ── Context voice dictation ──
+  let contextRecognition = null;
+  let contextDictating   = false;
+  btnContextDictate.addEventListener('click', () => {
+    if (!SpeechRecognition) {
+      alert('Voice dictation requires Chrome on desktop.');
+      return;
+    }
+    if (contextDictating) {
+      // Stop dictation
+      if (contextRecognition) { contextRecognition.stop(); contextRecognition = null; }
+      contextDictating = false;
+      btnContextDictate.textContent = 'Dictate';
+      btnContextDictate.classList.remove('recording');
+    } else {
+      // Start dictation
+      contextDictating = true;
+      btnContextDictate.textContent = 'Stop';
+      btnContextDictate.classList.add('recording');
+      contextRecognition = new SpeechRecognition();
+      contextRecognition.continuous      = true;
+      contextRecognition.interimResults  = false;
+      contextRecognition.lang            = 'en-US';
+      contextRecognition.onresult = (event) => {
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            contextTextarea.value += (contextTextarea.value ? ' ' : '') +
+              event.results[i][0].transcript.trim();
+          }
+        }
+      };
+      contextRecognition.onend = () => {
+        if (contextDictating) contextRecognition.start(); // keep going until stopped
+      };
+      contextRecognition.onerror = () => {
+        contextDictating = false;
+        btnContextDictate.textContent = 'Dictate';
+        btnContextDictate.classList.remove('recording');
+      };
+      contextRecognition.start();
+    }
+  });
+
+  // Meeting state
+  let meetingStream    = null;
+  let meetingRecorder  = null;
+  let meetingChunks    = [];
+  let meetingAudioBlob = null;
+  let mIsRecording     = false;
+  let mIsPaused        = false;
+
+  // AudioContext
+  let audioCtx     = null;
+  let analyserNode = null;
+  let levelRafId   = null;
+
+  // ── Refresh Record button based on OpenAI key ──
+  function refreshMRecordBtn() {
+    const hasKey = getOpenAIKey().length > 0;
+    mBtnRecord.disabled = !hasKey || mIsRecording;
+    mNoOpenAIMsg.style.display = hasKey ? 'none' : 'block';
+  }
+
+  // ── Refresh Meeting Generate Notes button ──
+  function refreshMGenerateBtn() {
+    const hasKey  = getAnthropicKey().length > 0;
+    const hasText = mTranscriptEl.innerText.trim().length > 0;
+    mBtnGenerate.disabled = !hasKey || !hasText;
+    if (mBtnGenerate.style.display !== 'none') {
+      mNoAnthropicMsg.style.display = hasKey ? 'none' : 'block';
+    }
+  }
+
+  // ── Show/hide transcript panel states ──
+  function showMTranscriptPanel(state) {
+    mTranscriptIdle.style.display    = state === 'idle'       ? 'flex'  : 'none';
+    mTranscriptLoading.style.display = state === 'loading'    ? 'flex'  : 'none';
+    mTranscriptEl.style.display      = state === 'transcript' ? 'block' : 'none';
+    mTranscriptError.style.display   = state === 'error'      ? 'block' : 'none';
+  }
+
+  function showMNotesPanel(state) {
+    mNotesPlaceholder.style.display = state === 'placeholder' ? 'flex'  : 'none';
+    mNotesLoading.style.display     = state === 'loading'     ? 'flex'  : 'none';
+    mNotesOutput.style.display      = state === 'output'      ? 'block' : 'none';
+  }
+
+  function setMTranscriptEditable(on) {
+    if (on) {
+      mTranscriptEl.setAttribute('contenteditable', 'true');
+      mTranscriptEl.classList.add('editable'); mEditHint.style.display = 'inline';
+    } else {
+      mTranscriptEl.removeAttribute('contenteditable');
+      mTranscriptEl.classList.remove('editable'); mEditHint.style.display = 'none';
+    }
+  }
+
+  function setMNotesEditable(on) {
+    if (on) {
+      mNotesOutput.setAttribute('contenteditable', 'true');
+      mNotesOutput.classList.add('editable');
+      mNotesEditHint.style.display = 'inline';
+    } else {
+      mNotesOutput.removeAttribute('contenteditable');
+      mNotesOutput.classList.remove('editable');
+      mNotesEditHint.style.display = 'none';
+    }
+  }
+
+  // ── Disable/enable all meeting buttons during Whisper processing ──
+  function setMeetingProcessing(on) {
+    mBtnRecord.disabled  = on;
+    mBtnPause.disabled   = on;
+    mBtnStop.disabled    = on;
+    mBtnClear.disabled   = on;
+    mBtnGenerate.disabled = on;
+  }
+
+  // ── Populate mic devices ──
+  async function populateMicDevices() {
+    try {
+      const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      tempStream.getTracks().forEach(t => t.stop());
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioIn = devices.filter(d => d.kind === 'audioinput');
+      const savedId = localStorage.getItem(LS_MIC_DEVICE);
+      mMicSelect.innerHTML = '';
+      audioIn.forEach((device, idx) => {
+        const opt = document.createElement('option');
+        opt.value = device.deviceId;
+        opt.textContent = device.label || `Microphone ${idx + 1}`;
+        mMicSelect.appendChild(opt);
+      });
+      if (savedId && [...mMicSelect.options].some(o => o.value === savedId)) {
+        mMicSelect.value = savedId;
+      }
+    } catch (err) {
+      mMicSelect.innerHTML = '<option value="">Mic access denied — check browser permissions</option>';
+    }
+    refreshMRecordBtn();
+  }
+
+  mMicSelect.addEventListener('change', () => localStorage.setItem(LS_MIC_DEVICE, mMicSelect.value));
+  mMicSelect.addEventListener('focus', () => { if (mMicSelect.options.length <= 1) populateMicDevices(); });
+
+  document.getElementById('m-template-select').addEventListener('change', (e) => {
+    mCurrentTemplate = e.target.value;
+  });
+  document.getElementById('m-style-select').addEventListener('change', (e) => {
+    mCurrentStyle = e.target.value;
+  });
+
+  if (getCurrentMode() === 'meeting') populateMicDevices();
+  else refreshMRecordBtn(); // set initial disabled state based on key
+
+  // ── Start meeting recording ──
+  async function meetingStartRecording() {
+    const deviceId = mMicSelect.value;
+    try {
+      meetingStream = await navigator.mediaDevices.getUserMedia({
+        audio: deviceId ? { deviceId: { exact: deviceId } } : true
+      });
+
+      meetingChunks    = [];
+      meetingAudioBlob = null;
+      mBtnRetry.style.display = 'none';   // clear retry state from any previous failed session
+
+      // Stop context dictation if running
+      if (contextDictating && contextRecognition) {
+        contextRecognition.stop(); contextRecognition = null;
+        contextDictating = false;
+        btnContextDictate.textContent = 'Dictate';
+        btnContextDictate.classList.remove('recording');
+      }
+
+      mIsRecording     = true;
+      mIsPaused        = false;
+
+      // Pick a supported MIME type
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus' : 'audio/webm';
+
+      meetingRecorder = new MediaRecorder(meetingStream, {
+        mimeType,
+        audioBitsPerSecond: 16000   // 16kbps — keeps a 30-min call well under Whisper's 25MB limit
+      });
+      meetingRecorder.ondataavailable = e => { if (e.data.size > 0) meetingChunks.push(e.data); };
+      meetingRecorder.onstop = () => {
+        meetingAudioBlob = new Blob(meetingChunks, { type: mimeType });
+        sendToWhisper(meetingAudioBlob);
+      };
+      meetingRecorder.start(100);
+
+      // Level metering
+      audioCtx     = new AudioContext();
+      analyserNode = audioCtx.createAnalyser();
+      analyserNode.fftSize = 512;
+      audioCtx.createMediaStreamSource(meetingStream).connect(analyserNode);
+      startLevelAnimation();
+
+      setMeetingStatus('Recording…', 'recording');
+      setLevelCaption('Recording in progress — both voices will be captured if VB-Cable is configured');
+      mBtnRecord.disabled  = true;
+      mBtnPause.disabled   = false;
+      mBtnPause.textContent = 'Pause';
+      mBtnPause.classList.remove('active');
+      mBtnStop.disabled    = false;
+
+      // Re-enumerate to get device labels
+      populateMicDevices().then(() => { if (deviceId) mMicSelect.value = deviceId; });
+
+    } catch (err) {
+      alert('Could not access microphone: ' + err.message);
+    }
+  }
+
+  function meetingTogglePause() {
+    if (!mIsPaused) {
+      mIsPaused = true;
+      if (meetingRecorder && meetingRecorder.state === 'recording') meetingRecorder.pause();
+      stopLevelAnimation(); flattenLevelBar();
+      setMeetingStatus('Paused', 'paused');
+      setLevelCaption('Paused');
+      mBtnPause.textContent = 'Resume'; mBtnPause.classList.add('active');
+    } else {
+      mIsPaused = false;
+      if (meetingRecorder && meetingRecorder.state === 'paused') meetingRecorder.resume();
+      startLevelAnimation();
+      setMeetingStatus('Recording…', 'recording');
+      setLevelCaption('Recording in progress — both voices will be captured if VB-Cable is configured');
+      mBtnPause.textContent = 'Pause'; mBtnPause.classList.remove('active');
+    }
+  }
+
+  function meetingStopRecording() {
+    if (meetingRecorder && meetingRecorder.state !== 'inactive') meetingRecorder.stop();
+    meetingEndSession(); // tears down stream/audioCtx, resets buttons — onstop fires async after
+  }
+
+  function meetingEndSession() {
+    mIsRecording = false; mIsPaused = false;
+    stopLevelAnimation(); flattenLevelBar();
+    if (meetingStream) { meetingStream.getTracks().forEach(t => t.stop()); meetingStream = null; }
+    if (audioCtx)      { audioCtx.close(); audioCtx = null; analyserNode = null; }
+    setMeetingStatus('Processing…', 'idle');
+    setLevelCaption('Audio captured — sending to Whisper…');
+    mBtnRecord.disabled  = true; // disabled until Whisper completes
+    mBtnPause.disabled   = true;
+    mBtnPause.textContent = 'Pause'; mBtnPause.classList.remove('active');
+    mBtnStop.disabled    = true;
+  }
+
+  // ── Whisper transcription ──
+  async function sendToWhisper(blob) {
+    // Guard: empty blob
+    if (!blob || blob.size < 500) {
+      showMTranscriptPanel('error');
+      mTranscriptError.textContent = 'No audio was captured. Please try recording again.';
+      mBtnRecord.disabled = !getOpenAIKey();
+      mBtnClear.disabled  = false;
+      setMeetingStatus('Ready', 'idle');
+      setLevelCaption('Ready — select a device and click Record');
+      return;
+    }
+
+    const openaiKey = getOpenAIKey();
+    if (!openaiKey) {
+      showMTranscriptPanel('error');
+      mTranscriptError.textContent = 'Add your OpenAI API key in Settings to use Meeting / Call mode.';
+      mBtnRecord.disabled = true;
+      mBtnClear.disabled  = false;
+      setMeetingStatus('Ready', 'idle');
+      setLevelCaption('Ready — select a device and click Record');
+      return;
+    }
+
+    // Show loading state, disable all controls
+    showMTranscriptPanel('loading');
+    setMeetingProcessing(true);
+    setMeetingStatus('Transcribing…', 'idle');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', blob, 'recording.webm');
+      formData.append('model', 'whisper-1');
+
+      const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${openaiKey}` },
+        body: formData
+      });
+
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e?.error?.message || `API error ${res.status}`);
+      }
+
+      const data = await res.json();
+      const text = (data.text || '').trim();
+
+      if (!text) {
+        showMTranscriptPanel('error');
+        mTranscriptError.textContent = 'Whisper returned an empty transcript. The audio may be too quiet or too short. Please try again.';
+        return;
+      }
+
+      // Populate transcript
+      mTranscriptEl.innerText = text;
+      showMTranscriptPanel('transcript');
+      setMTranscriptEditable(true);
+      mBtnCopyTranscript.disabled = false;
+      mBtnGenerate.style.display  = 'inline-block';
+      setMeetingStatus('Transcribed', 'idle');
+      setLevelCaption('Transcription complete');
+      refreshMGenerateBtn();
+
+    } catch (err) {
+      showMTranscriptPanel('error');
+      mTranscriptError.textContent =
+        `Transcription failed: ${err.message}. Please check your OpenAI API key in Settings.`;
+      setMeetingStatus('Error', 'idle');
+      // Preserve blob so user can retry without re-recording
+      if (blob && blob.size > 0) mBtnRetry.style.display = 'inline-block';
+    } finally {
+      // Re-enable record and clear regardless of outcome
+      setMeetingProcessing(false);
+      mBtnRecord.disabled = !getOpenAIKey();
+      mBtnPause.disabled  = true;
+      mBtnStop.disabled   = true;
+    }
+  }
+
+  // ── Meeting Generate Notes ──
+  async function generateMeetingNotes() {
+    const apiKey  = getAnthropicKey();
+    const text    = mTranscriptEl.innerText.trim();
+    const context = contextTextarea.value.trim();
+    if (!apiKey || !text) return;
+
+    showMNotesPanel('loading');
+    mBtnGenerate.disabled = true; mBtnCopyNotes.disabled = true;
+    mNoAnthropicMsg.style.display = 'none';
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json', 'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6', max_tokens: 1024,
+          system: buildSystemPrompt(mCurrentTemplate, mCurrentStyle),
+          messages: [{ role: 'user', content: `${context ? `Context provided by the user:\n${context}\n\n` : ''}Here is the meeting transcript:\n\n${text}` }]
+        })
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e?.error?.message || `API error ${res.status}`); }
+      const data = await res.json();
+      renderNotes(data?.content?.[0]?.text || '', mNotesOutput);
+      showMNotesPanel('output');
+      setMNotesEditable(true);
+      mBtnCopyNotes.disabled = false;
+      refreshMenuExportItems();
+    } catch (err) {
+      mNotesOutput.innerHTML = `<p style="color:#e24b4a">${err.message}</p>`;
+      showMNotesPanel('output');
+    } finally { mBtnGenerate.disabled = false; }
+  }
+
+  function downloadMTxt() {
+    const now = new Date(); const pad = n => String(n).padStart(2, '0');
+    const fn = `meeting_${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}.txt`;
+    const body = ['AI NOTETAKER — MEETING / CALL EXPORT','=====================================','',
+      'TRANSCRIPT','----------', mTranscriptEl.innerText.trim(),
+      '','AI NOTES','--------', mNotesOutput.innerText.trim()].join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([body], { type: 'text/plain' }));
+    a.download = fn; a.click();
+  }
+
+  function downloadMMd() {
+    const now = new Date(); const pad = n => String(n).padStart(2, '0');
+    const dateStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+    const timeStr = `${pad(now.getHours())}-${pad(now.getMinutes())}`;
+    const fn = `meeting_${dateStr}_${timeStr}.md`;
+    const body = [
+      '# AI Notetaker Session', '',
+      '## Date',
+      now.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+      '',
+      '## Transcript',
+      mTranscriptEl.innerText.trim(),
+      '',
+      '## AI Notes',
+      mNotesOutput.innerText.trim()
+    ].join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([body], { type: 'text/markdown' }));
+    a.download = fn; a.click();
+  }
+
+  function mHasContent() {
+    return mTranscriptEl.innerText.trim().length > 0 || mNotesOutput.innerText.trim().length > 0;
+  }
+
+  // ── Meeting status helpers ──
+  function setMeetingStatus(text, state) {
+    mStatusTxt.textContent = text;
+    mStatusEl.classList.toggle('recording', state === 'recording');
+    mStatusEl.classList.toggle('paused',    state === 'paused');
+  }
+
+  function setLevelCaption(text) { levelCaption.textContent = text; }
+
+  // ── Level animation ──
+  function startLevelAnimation() {
+    if (!analyserNode) return;
+    const data = new Uint8Array(analyserNode.frequencyBinCount);
+    function tick() {
+      analyserNode.getByteFrequencyData(data);
+      const avg = data.reduce((a, b) => a + b, 0) / data.length;
+      levelBar.style.width = Math.min(100, (avg / 100) * 100) + '%';
+      levelRafId = requestAnimationFrame(tick);
+    }
+    tick();
+  }
+
+  function stopLevelAnimation() { if (levelRafId) { cancelAnimationFrame(levelRafId); levelRafId = null; } }
+  function flattenLevelBar()    { levelBar.style.width = '0%'; }
+
+  // ═══════════════════════════════════════════
+  //  LOAD SESSION FROM .MD (Change Set 5)
+  // ═══════════════════════════════════════════
+
+  function parseSessionMd(text) {
+    const transcriptMatch = text.match(/## Transcript\n([\s\S]*?)(?=\n## |$)/);
+    const notesMatch      = text.match(/## AI Notes\n([\s\S]*?)(?=\n## |$)/);
+    return {
+      transcript: transcriptMatch ? transcriptMatch[1].trim() : '',
+      notes:      notesMatch      ? notesMatch[1].trim()      : ''
+    };
+  }
+
+  function loadQNSession(parsed) {
+    // Clear any live recording first
+    if (isRecording) endSession();
+    committed = '';
+    transcriptEl.classList.remove('collapsed');
+    transcriptPanel.classList.remove('transcript-collapsed');
+    btnCollapseTranscript.textContent = 'Collapse';
+    setQNNotesEditable(false);
+    notesOutput.innerHTML = '';
+    showQNNotesPanel('placeholder');
+    noKeyMsg.style.display = 'none';
+    btnGenerate.style.display = 'none';
+    setQNStatus('Loaded', 'idle');
+
+    if (parsed.transcript) {
+      transcriptEl.innerText = parsed.transcript;
+      committed = parsed.transcript + ' ';
+      setQNTranscriptEditable(true);
+      btnCopyTranscript.disabled = false;
+      btnGenerate.style.display = 'inline-block';
+      refreshGenerateBtn();
+    } else {
+      transcriptEl.innerHTML = '';
+      setQNTranscriptEditable(false);
+      btnCopyTranscript.disabled = true;
+      btnGenerate.style.display = 'none';
+    }
+
+    if (parsed.notes) {
+      renderNotes(parsed.notes, notesOutput);
+      showQNNotesPanel('output');
+      setQNNotesEditable(true);
+      btnCopyNotes.disabled = false;
+    }
+    refreshMenuExportItems();
+  }
+
+  function loadMSession(parsed) {
+    if (mIsRecording) meetingEndSession();
+    meetingChunks = []; meetingAudioBlob = null;
+    mTranscriptEl.classList.remove('collapsed');
+    mTranscriptPanel.classList.remove('transcript-collapsed');
+    mBtnCollapseTranscript.textContent = 'Collapse';
+    setMNotesEditable(false);
+    mNotesOutput.innerHTML = '';
+    showMNotesPanel('placeholder');
+    mBtnRetry.style.display = 'none';
+    mNoAnthropicMsg.style.display = 'none';
+    setMeetingStatus('Loaded', 'idle');
+
+    if (parsed.transcript) {
+      mTranscriptEl.innerText = parsed.transcript;
+      showMTranscriptPanel('transcript');
+      setMTranscriptEditable(true);
+      mBtnCopyTranscript.disabled = false;
+      mBtnGenerate.style.display = 'inline-block';
+      refreshMGenerateBtn();
+    } else {
+      mTranscriptEl.innerHTML = '';
+      showMTranscriptPanel('idle');
+      setMTranscriptEditable(false);
+      mBtnCopyTranscript.disabled = true;
+      mBtnGenerate.style.display = 'none';
+    }
+
+    if (parsed.notes) {
+      renderNotes(parsed.notes, mNotesOutput);
+      showMNotesPanel('output');
+      setMNotesEditable(true);
+      mBtnCopyNotes.disabled = false;
+    }
+    refreshMenuExportItems();
+  }
+
+  // ── File input for Load Session ──
+  const fileLoadMd = document.getElementById('file-load-md');
+
+  menuLoadMd.addEventListener('click', () => {
+    closeMenu();
+    fileLoadMd.click();
+  });
+
+  fileLoadMd.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const parsed = parseSessionMd(ev.target.result);
+      if (!parsed.transcript && !parsed.notes) {
+        alert('Could not find a Transcript or AI Notes section in this file. Make sure it was saved by AI Notetaker.');
+        return;
+      }
+      if (getCurrentMode() === 'quick') loadQNSession(parsed);
+      else                              loadMSession(parsed);
+    };
+    reader.readAsText(file);
+    fileLoadMd.value = ''; // reset so same file can be re-loaded
+  });
+
+  // ── Menu: Save As .md / Export .txt ──
+  menuSaveMd.addEventListener('click', () => {
+    closeMenu();
+    if (getCurrentMode() === 'quick') downloadQNMd();
+    else                              downloadMMd();
+  });
+
+  menuExportTxt.addEventListener('click', () => {
+    closeMenu();
+    if (getCurrentMode() === 'quick') downloadQNTxt();
+    else                              downloadMTxt();
+  });
+
+  // ── Meeting button handlers ──
+  mBtnRetry.addEventListener('click', () => {
+    if (meetingAudioBlob) {
+      mBtnRetry.style.display = 'none';
+      sendToWhisper(meetingAudioBlob);   // re-send the preserved blob
+    }
+  });
+
+  mBtnRecord.addEventListener('click', meetingStartRecording);
+  mBtnPause.addEventListener('click', meetingTogglePause);
+  mBtnStop.addEventListener('click', meetingStopRecording);
+  mBtnGenerate.addEventListener('click', generateMeetingNotes);
+  mBtnCopyTranscript.addEventListener('click', () => copyText(mTranscriptEl.innerText.trim(), mBtnCopyTranscript));
+  mBtnCopyNotes.addEventListener('click', () => copyText(mNotesOutput.innerText.trim(), mBtnCopyNotes));
+
+  mBtnCollapseTranscript.addEventListener('click', () => {
+    const isCollapsed = mTranscriptEl.classList.toggle('collapsed');
+    mTranscriptPanel.classList.toggle('transcript-collapsed', isCollapsed);
+    mBtnCollapseTranscript.textContent = isCollapsed ? 'Expand' : 'Collapse';
+  });
+
+  mBtnClear.addEventListener('click', () => {
+    if (mHasContent() && !confirm('This will clear the transcript and notes. Continue?')) return;
+    if (mIsRecording) meetingEndSession();
+    meetingChunks = []; meetingAudioBlob = null;
+    contextTextarea.value = '';
+    mTranscriptEl.innerHTML = ''; mTranscriptError.textContent = '';
+    mTranscriptEl.classList.remove('collapsed');
+    mTranscriptPanel.classList.remove('transcript-collapsed');
+    mBtnCollapseTranscript.textContent = 'Collapse';
+    setMTranscriptEditable(false);
+    setMNotesEditable(false);
+    mBtnGenerate.style.display = 'none'; mBtnRetry.style.display = 'none'; mNoAnthropicMsg.style.display = 'none';
+    mBtnCopyTranscript.disabled = true; mBtnCopyNotes.disabled = true;
+    mNotesOutput.innerHTML = '';
+    showMTranscriptPanel('idle'); showMNotesPanel('placeholder');
+    refreshMenuExportItems();
+    setMeetingStatus('Ready', 'idle');
+    setLevelCaption('Ready — select a device and click Record');
+    refreshMRecordBtn();
+  });
+</script>
+
+</body>
+</html>
