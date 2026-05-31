@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Notetaker v2.2.0</title>
+  <title>AI Notetaker v2.4.1</title>
   <style>
     /* ── Reset & base ── */
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -79,24 +79,46 @@
     .settings-panel {
       background: var(--bg-surface2); border-radius: 10px;
       border: 0.5px solid var(--border);
-      overflow: hidden; max-height: 0; transition: max-height 0.3s ease;
+      display: none;   /* hidden when closed — no collapsed-border line, no dead space */
     }
-    .settings-panel.open { max-height: 220px; }
+    .settings-panel.open { display: block; }
     .settings-inner { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
     .settings-title {
       font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
       letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 2px;
     }
-    .settings-row { display: flex; align-items: center; gap: 10px; }
-    .settings-row label { font-size: 0.8rem; font-weight: 500; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+    /* Header row: title + close (X) */
+    .settings-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+    .settings-close {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; font-size: 0.9rem; padding: 0;
+      border: 0.5px solid var(--border); border-radius: 6px;
+      background: var(--bg-surface); color: var(--text-dim); cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .settings-close:hover { background: var(--bg-control); color: var(--text-muted); }
+    /* Stacked field: label on its own line so the input gets the full width (fixes mobile squeeze) */
+    .settings-row { display: flex; flex-direction: column; gap: 6px; }
+    .settings-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .settings-row label { font-size: 0.8rem; font-weight: 500; color: var(--text-muted); }
     .settings-row label em { font-style: normal; font-weight: 400; color: var(--text-dim); }
+    .settings-key-wrap { position: relative; }
     .settings-key-input {
-      flex: 1; font-size: 0.88rem; padding: 7px 11px;
+      width: 100%; box-sizing: border-box; font-size: 16px; /* 16px stops iOS Safari auto-zooming on focus */
+      min-height: 44px; padding: 10px 62px 10px 12px;
       border: 0.5px solid var(--border); border-radius: 6px; outline: none;
       font-family: 'Segoe UI', sans-serif; color: var(--text-muted);
-      background: var(--bg-app); transition: border-color 0.2s; min-width: 0;
+      background: var(--bg-app); transition: border-color 0.2s;
     }
     .settings-key-input:focus { border-color: var(--accent); }
+    /* Show / Hide text button sits inside the input on the right */
+    .key-toggle {
+      position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
+      padding: 6px 10px; font-size: 0.75rem; font-weight: 500;
+      border: none; border-radius: 5px; background: transparent;
+      color: var(--text-dim); cursor: pointer; transition: color 0.15s, background 0.15s;
+    }
+    .key-toggle:hover { color: var(--accent); background: var(--bg-surface); }
     .key-saved { font-size: 0.75rem; font-weight: 600; color: var(--accent); white-space: nowrap; display: none; }
 
     /* ── Setup Guide ── */
@@ -128,18 +150,17 @@
       border: 0.5px solid var(--amber-border); border-radius: 5px;
       padding: 6px 10px; margin-top: 8px;
     }
-    /* Taller max-height for setup panel since it has more content */
-    #setup-panel.open { max-height: 800px; }
+    /* settings & setup panels now toggle via display (see .settings-panel) */
 
     /* ── Status badge (shared) ── */
     .status-badge {
       display: inline-flex; align-items: center; gap: 8px;
-      font-size: 0.82rem; font-weight: 500; padding: 5px 12px;
-      border-radius: 999px; background: var(--bg-surface); color: var(--text-dim);
-      border: 0.5px solid var(--border); transition: all 0.3s;
+      font-size: 0.82rem; font-weight: 500; padding: 2px 0;
+      background: transparent; color: var(--text-dim);
+      border: none; transition: color 0.3s;
     }
-    .status-badge.recording { background: var(--red-bg); color: var(--red); border-color: var(--red-border); }
-    .status-badge.paused    { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+    .status-badge.recording { color: var(--red); }
+    .status-badge.paused    { color: var(--amber); }
     .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); transition: background 0.3s; }
     .status-badge.recording .status-dot { background: var(--red); animation: pulse 1.2s infinite; }
     .status-badge.paused    .status-dot { background: var(--amber); }
@@ -158,7 +179,7 @@
     button:disabled { opacity: 0.3; cursor: not-allowed; }
 
     /* Quick Note buttons */
-    #btn-record  { background: var(--accent); color: #061410; }
+    #btn-record  { background: var(--red); color: #fff; }
     #btn-record:not(:disabled):hover { opacity: 0.88; }
     #btn-pause   { background: var(--bg-surface); color: var(--text-muted); border: 0.5px solid var(--border); }
     #btn-pause.active { background: var(--amber-bg); color: var(--amber); border: 0.5px solid var(--amber-border); }
@@ -170,7 +191,7 @@
     #btn-clear:hover { background: var(--bg-control); }
 
     /* Meeting/Call buttons */
-    #m-btn-record  { background: var(--accent); color: #061410; }
+    #m-btn-record  { background: var(--red); color: #fff; }
     #m-btn-record:not(:disabled):hover { opacity: 0.88; }
     #m-btn-pause   { background: var(--bg-surface); color: var(--text-muted); border: 0.5px solid var(--border); }
     #m-btn-pause.active { background: var(--amber-bg); color: var(--amber); border: 0.5px solid var(--amber-border); }
@@ -371,6 +392,22 @@
       background: var(--amber-bg); border: 0.5px solid var(--amber-border);
       border-radius: 6px; padding: 8px 12px; text-align: center;
     }
+    /* Actionable key banner: sits at the top of a mode, gives a direct way to fix the problem */
+    .key-banner {
+      display: none; align-items: center; justify-content: space-between; gap: 12px;
+      font-size: 0.82rem; color: var(--amber);
+      background: var(--amber-bg); border: 0.5px solid var(--amber-border);
+      border-radius: 8px; padding: 10px 12px;
+    }
+    .key-banner.show { display: flex; }
+    .key-banner-text { text-align: left; }
+    .key-banner-btn {
+      flex-shrink: 0; font-size: 0.78rem; font-weight: 500;
+      padding: 6px 12px; border-radius: 6px; cursor: pointer;
+      background: var(--amber); color: #1a1205; border: none;
+      transition: opacity 0.15s;
+    }
+    .key-banner-btn:hover { opacity: 0.85; }
 
     /* ── Browser warning ── */
     #browser-warning {
@@ -387,7 +424,7 @@
       background: var(--bg-surface); border-radius: 10px; padding: 12px 16px;
       border: 0.5px solid var(--border);
     }
-    .meeting-device-label { font-size: 0.8rem; font-weight: 500; color: var(--text-muted); white-space: nowrap; }
+    .meeting-device-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); white-space: nowrap; }
 
     .meeting-select {
       flex: 1; font-size: 0.85rem; padding: 7px 10px;
@@ -415,6 +452,18 @@
       align-items: center; justify-content: center; gap: 14px; color: var(--text-dim);
     }
     .whisper-loading p { font-size: 0.85rem; font-weight: 500; }
+    /* ── v2.4.0 layout zones: Setup / Record / Output ── */
+    .zone-label {
+      font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-dim); margin: 0 0 8px 2px;
+    }
+    .zone-card {
+      background: var(--bg-surface2); border: 0.5px solid var(--border);
+      border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 14px;
+    }
+    /* Flatten inner cards so they don't nest inside a zone card */
+    .zone-card .meeting-device-row,
+    .zone-card .level-card { background: transparent; border: none; padding: 0; border-radius: 0; }
   </style>
 </head>
 <body>
@@ -425,11 +474,12 @@
   <header>
     <h1>AI Notetaker</h1>
     <div class="header-right">
-      <span>v2.2.0</span>
+      <span>v2.4.1</span>
       <div class="menu-container">
         <button id="btn-menu">&#8943;</button>
         <div class="menu-dropdown" id="menu-dropdown">
           <button class="menu-item" id="menu-load-md">Load .md</button>
+          <button class="menu-item" id="menu-import-rec">Import Recording</button>
           <button class="menu-item" id="menu-save-md" disabled>Save As .md</button>
           <button class="menu-item" id="menu-export-txt" disabled>Export .txt</button>
           <div class="menu-divider"></div>
@@ -450,18 +500,33 @@
   <!-- Settings panel -->
   <div class="settings-panel" id="settings-panel">
     <div class="settings-inner">
-      <div class="settings-title">API Keys</div>
-      <div class="settings-row">
-        <label for="anthropic-key-input">Anthropic API Key <em>(for AI Notes)</em></label>
-        <input id="anthropic-key-input" class="settings-key-input" type="password"
-               placeholder="sk-ant-..." autocomplete="off" spellcheck="false" />
-        <span class="key-saved" id="anthropic-key-saved">✓ Saved</span>
+      <div class="settings-header">
+        <div class="settings-title">API Keys</div>
+        <button type="button" class="settings-close" id="settings-close" aria-label="Close settings" title="Close">✕</button>
       </div>
       <div class="settings-row">
-        <label for="openai-key-input">OpenAI API Key <em>(for Whisper — Meeting / Call mode)</em></label>
-        <input id="openai-key-input" class="settings-key-input" type="password"
-               placeholder="sk-..." autocomplete="off" spellcheck="false" />
-        <span class="key-saved" id="openai-key-saved">✓ Saved</span>
+        <div class="settings-label-row">
+          <label for="anthropic-key-input">Anthropic API Key <em>(for AI Notes)</em></label>
+          <span class="key-saved" id="anthropic-key-saved">✓ Saved</span>
+        </div>
+        <div class="settings-key-wrap">
+          <input id="anthropic-key-input" class="settings-key-input" type="password"
+                 placeholder="sk-ant-..." autocomplete="off" spellcheck="false"
+                 autocapitalize="off" autocorrect="off" />
+          <button type="button" class="key-toggle" id="anthropic-key-toggle" aria-label="Show Anthropic key">Show</button>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-label-row">
+          <label for="openai-key-input">OpenAI API Key <em>(for Whisper — Meeting / Call mode)</em></label>
+          <span class="key-saved" id="openai-key-saved">✓ Saved</span>
+        </div>
+        <div class="settings-key-wrap">
+          <input id="openai-key-input" class="settings-key-input" type="password"
+                 placeholder="sk-..." autocomplete="off" spellcheck="false"
+                 autocapitalize="off" autocorrect="off" />
+          <button type="button" class="key-toggle" id="openai-key-toggle" aria-label="Show OpenAI key">Show</button>
+        </div>
       </div>
     </div>
   </div>
@@ -527,44 +592,66 @@
   ══════════════════════════════════════ -->
   <div id="mode-quick">
 
-    <div id="status" class="status-badge">
-      <div class="status-dot"></div>
-      <span id="status-text">Ready</span>
-    </div>
+    <!-- ── NOTES SETUP zone ── -->
+    <div class="zone">
+      <div class="zone-label">Notes Setup</div>
+      <div class="zone-card">
 
-    <div class="controls">
-      <button id="btn-record">Record</button>
-      <button id="btn-pause" disabled>Pause</button>
-      <button id="btn-generate" disabled>Generate Notes</button>
-      <div class="controls-spacer"></div>
-      <div class="controls-right">
-        <button id="btn-stop" disabled>Stop</button>
-        <button id="btn-clear">Clear</button>
+        <!-- Template & style selectors -->
+        <div class="template-row">
+          <label>Template</label>
+          <select id="qn-template-select" class="template-select">
+            <option value="general">General Meeting</option>
+            <option value="realestate">Real Estate Call</option>
+            <option value="loan">Loan Inquiry</option>
+            <option value="intake">Client Intake</option>
+            <option value="oneone">1:1 / Coaching Call</option>
+            <option value="brainstorm">Brainstorm</option>
+          </select>
+          <label>Style</label>
+          <select id="qn-style-select" class="template-select">
+            <option value="bullets">Bullet Points</option>
+            <option value="prose">Prose / Narrative</option>
+            <option value="exec">Executive Summary</option>
+          </select>
+        </div>
+
       </div>
     </div>
 
-    <!-- Template & style selectors -->
-    <div class="template-row">
-      <label>Template</label>
-      <select id="qn-template-select" class="template-select">
-        <option value="general">General Meeting</option>
-        <option value="realestate">Real Estate Call</option>
-        <option value="loan">Loan Inquiry</option>
-        <option value="intake">Client Intake</option>
-        <option value="oneone">1:1 / Coaching Call</option>
-        <option value="brainstorm">Brainstorm</option>
-      </select>
-      <label>Style</label>
-      <select id="qn-style-select" class="template-select">
-        <option value="bullets">Bullet Points</option>
-        <option value="prose">Prose / Narrative</option>
-        <option value="exec">Executive Summary</option>
-      </select>
+    <!-- ── RECORD zone ── -->
+    <div class="zone">
+      <div class="zone-label">Record</div>
+      <div class="zone-card">
+
+        <div id="status" class="status-badge">
+          <div class="status-dot"></div>
+          <span id="status-text">Ready</span>
+        </div>
+
+        <div class="controls">
+          <button id="btn-record">Record</button>
+          <button id="btn-pause" disabled>Pause</button>
+          <button id="btn-generate" disabled>Generate Notes</button>
+          <div class="controls-spacer"></div>
+          <div class="controls-right">
+            <button id="btn-stop" disabled>Stop</button>
+            <button id="btn-clear">Clear</button>
+          </div>
+        </div>
+
+      </div>
     </div>
 
-    <div id="no-key-msg" class="warn-msg">Enter your Anthropic API key in Settings to generate notes.</div>
+    <div id="no-key-msg" class="key-banner">
+      <span class="key-banner-text">An Anthropic API key is needed to generate notes.</span>
+      <button type="button" class="key-banner-btn" data-open-settings>Open Settings</button>
+    </div>
 
-    <div class="panels">
+    <!-- ── OUTPUT zone ── -->
+    <div class="zone">
+      <div class="zone-label">Output</div>
+      <div class="panels">
       <div class="panel">
         <div class="panel-header">
           <div class="panel-label">Live Transcript</div>
@@ -595,6 +682,7 @@
         <div class="notes-output" id="notes-output"></div>
       </div>
     </div>
+    </div><!-- /Output zone -->
 
 
   </div><!-- /mode-quick -->
@@ -604,140 +692,160 @@
   ══════════════════════════════════════ -->
   <div id="mode-meeting">
 
-    <!-- Input device selector -->
-    <div class="meeting-device-row">
-      <span class="meeting-device-label">Input Device</span>
-      <select id="meeting-mic-select" class="meeting-select">
-        <option value="">— loading devices —</option>
-      </select>
+    <!-- Actionable key banner: top of mode, one tap to fix (replaces buried warn-msg) -->
+    <div id="m-no-openai-msg" class="key-banner">
+      <span class="key-banner-text">An OpenAI API key is needed for Meeting / Call mode.</span>
+      <button type="button" class="key-banner-btn" data-open-settings>Open Settings</button>
     </div>
 
-    <!-- Template & style selectors -->
-    <div class="template-row">
-      <label>Template</label>
-      <select id="m-template-select" class="template-select">
-        <option value="general">General Meeting</option>
-        <option value="realestate">Real Estate Call</option>
-        <option value="loan">Loan Inquiry</option>
-        <option value="intake">Client Intake</option>
-        <option value="oneone">1:1 / Coaching Call</option>
-        <option value="brainstorm">Brainstorm</option>
-      </select>
-      <label>Style</label>
-      <select id="m-style-select" class="template-select">
-        <option value="bullets">Bullet Points</option>
-        <option value="prose">Prose / Narrative</option>
-        <option value="exec">Executive Summary</option>
-      </select>
-    </div>
+    <!-- ── NOTES SETUP zone: shapes how the notes are written, sits just above the output ── -->
+    <div class="zone">
+      <div class="zone-label">Notes Setup</div>
+      <div class="zone-card">
 
-    <!-- Context box -->
-    <div class="context-toggle-row">
-      <button class="btn-add-context" id="btn-add-context">+ Add Context</button>
-    </div>
-    <div class="context-panel" id="context-panel">
-      <div class="context-inner">
-        <div class="context-label">Call Context — advise the AI before generating notes</div>
-        <div class="context-input-row">
-          <textarea
-            id="context-textarea"
-            class="context-textarea"
-            placeholder="e.g. DSCR loan inquiry, borrower has 3 investment properties, looking at a 4-unit in Phoenix..."
-          ></textarea>
-          <button class="btn-context-dictate" id="btn-context-dictate">Dictate</button>
+        <!-- Template & style selectors -->
+        <div class="template-row">
+          <label>Template</label>
+          <select id="m-template-select" class="template-select">
+            <option value="general">General Meeting</option>
+            <option value="realestate">Real Estate Call</option>
+            <option value="loan">Loan Inquiry</option>
+            <option value="intake">Client Intake</option>
+            <option value="oneone">1:1 / Coaching Call</option>
+            <option value="brainstorm">Brainstorm</option>
+          </select>
+          <label>Style</label>
+          <select id="m-style-select" class="template-select">
+            <option value="bullets">Bullet Points</option>
+            <option value="prose">Prose / Narrative</option>
+            <option value="exec">Executive Summary</option>
+          </select>
         </div>
-      </div>
-    </div>
 
-    <!-- Missing OpenAI key notice -->
-    <div id="m-no-openai-msg" class="warn-msg">
-      Add your OpenAI API key in Settings to use Meeting / Call mode.
-    </div>
-
-    <!-- Status -->
-    <div id="m-status" class="status-badge">
-      <div class="status-dot"></div>
-      <span id="m-status-text">Ready</span>
-    </div>
-
-    <!-- Controls -->
-    <div class="controls">
-      <button id="m-btn-record">Record</button>
-      <button id="m-btn-pause" disabled>Pause</button>
-      <button id="m-btn-generate" disabled>Generate Notes</button>
-      <button id="m-btn-retry" style="display:none;">Retry Transcription</button>
-      <div class="controls-spacer"></div>
-      <div class="controls-right">
-        <button id="m-btn-stop" disabled>Stop</button>
-        <button id="m-btn-clear">Clear</button>
-      </div>
-    </div>
-
-    <div id="m-no-anthropic-msg" class="warn-msg">Enter your Anthropic API key in Settings to generate notes.</div>
-
-    <!-- Level indicator -->
-    <div class="level-card">
-      <div class="level-track-row">
-        <span class="level-mic-icon">Input Level</span>
-        <div class="level-track"><div id="level-bar"></div></div>
-      </div>
-      <div class="level-caption" id="level-caption">Ready — select a device and click Record</div>
-    </div>
-
-    <!-- Two panels -->
-    <div class="panels">
-
-      <!-- Left: transcript panel -->
-      <div class="panel">
-        <div class="panel-header">
-          <div class="panel-label">Transcript</div>
-          <div class="panel-header-right">
-            <span id="m-edit-hint" class="edit-hint">Click to edit</span>
-            <button class="btn-small" id="m-btn-collapse-transcript">Collapse</button>
-            <button class="btn-small" id="m-btn-copy-transcript" disabled>Copy</button>
+        <!-- Context box -->
+        <div class="context-toggle-row">
+          <button class="btn-add-context" id="btn-add-context">+ Add Context</button>
+        </div>
+        <div class="context-panel" id="context-panel">
+          <div class="context-inner">
+            <div class="context-label">Call Context — advise the AI before generating notes</div>
+            <div class="context-input-row">
+              <textarea
+                id="context-textarea"
+                class="context-textarea"
+                placeholder="e.g. DSCR loan inquiry, borrower has 3 investment properties, looking at a 4-unit in Phoenix..."
+              ></textarea>
+              <button class="btn-context-dictate" id="btn-context-dictate">Dictate</button>
+            </div>
           </div>
         </div>
 
-        <!-- Idle state -->
-        <div class="notes-placeholder" id="m-transcript-idle">
-          <div class="icon"></div>
-          <p>Select an input device, then click <strong>Record</strong> to begin.</p>
-        </div>
-
-        <!-- Whisper loading state -->
-        <div class="whisper-loading" id="m-transcript-loading">
-          <div class="spinner"></div>
-          <p>Transcribing audio… this may take a few seconds</p>
-        </div>
-
-        <!-- Transcript text -->
-        <div id="m-transcript"></div>
-
-        <!-- Error state -->
-        <div class="transcript-error" id="m-transcript-error"></div>
       </div>
-
-      <!-- Right: AI notes panel -->
-      <div class="panel">
-        <div class="panel-header">
-          <div class="panel-label">AI Notes</div>
-          <div class="panel-header-right">
-            <span id="m-notes-edit-hint" class="edit-hint">Click to edit</span>
-            <button class="btn-small" id="m-btn-copy-notes" disabled>Copy</button>
-          </div>
-        </div>
-        <div class="notes-placeholder" id="m-notes-placeholder">
-          <div class="icon"></div>
-          <p>Transcription will appear after recording stops.<br>Then click <strong>Generate Notes</strong>.</p>
-        </div>
-        <div class="notes-loading" id="m-notes-loading">
-          <div class="spinner"></div><p>Generating notes…</p>
-        </div>
-        <div class="notes-output" id="m-notes-output"></div>
-      </div>
-
     </div>
 
+    <!-- ── RECORD zone: input device + the act of recording ── -->
+    <div class="zone">
+      <div class="zone-label">Record</div>
+      <div class="zone-card">
+
+        <!-- Input device selector -->
+        <div class="meeting-device-row">
+          <span class="meeting-device-label">Input Device</span>
+          <select id="meeting-mic-select" class="meeting-select">
+            <option value="">— loading devices —</option>
+          </select>
+        </div>
+
+        <!-- Status -->
+        <div id="m-status" class="status-badge">
+          <div class="status-dot"></div>
+          <span id="m-status-text">Ready</span>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+          <button id="m-btn-record">Record</button>
+          <button id="m-btn-pause" disabled>Pause</button>
+          <button id="m-btn-generate" disabled>Generate Notes</button>
+          <button id="m-btn-retry" style="display:none;">Retry Transcription</button>
+          <div class="controls-spacer"></div>
+          <div class="controls-right">
+            <button id="m-btn-stop" disabled>Stop</button>
+            <button id="m-btn-clear">Clear</button>
+          </div>
+        </div>
+
+        <!-- Level indicator -->
+        <div class="level-card">
+          <div class="level-track-row">
+            <span class="level-mic-icon">Input Level</span>
+            <div class="level-track"><div id="level-bar"></div></div>
+          </div>
+          <div class="level-caption" id="level-caption">Ready — select a device and click Record</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Anthropic key notice (redesigned in Stage 2) -->
+    <div id="m-no-anthropic-msg" class="key-banner">
+      <span class="key-banner-text">An Anthropic API key is needed to generate notes.</span>
+      <button type="button" class="key-banner-btn" data-open-settings>Open Settings</button>
+    </div>
+
+    <!-- ── OUTPUT zone: transcript + AI notes ── -->
+    <div class="zone">
+      <div class="zone-label">Output</div>
+      <div class="panels">
+
+        <!-- Left: transcript panel -->
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-label">Transcript</div>
+            <div class="panel-header-right">
+              <span id="m-edit-hint" class="edit-hint">Click to edit</span>
+              <button class="btn-small" id="m-btn-collapse-transcript">Collapse</button>
+              <button class="btn-small" id="m-btn-copy-transcript" disabled>Copy</button>
+            </div>
+          </div>
+          <div class="notes-placeholder" id="m-transcript-idle">
+            <div class="icon"></div>
+            <p>Select an input device, then click <strong>Record</strong> to begin.</p>
+          </div>
+          <div class="whisper-loading" id="m-transcript-loading">
+            <div class="spinner"></div>
+            <p>Transcribing audio… this may take a few seconds</p>
+          </div>
+          <div id="m-transcript"></div>
+          <div class="transcript-error" id="m-transcript-error"></div>
+        </div>
+
+        <!-- Right: AI notes panel -->
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-label">AI Notes</div>
+            <div class="panel-header-right">
+              <span id="m-notes-edit-hint" class="edit-hint">Click to edit</span>
+              <button class="btn-small" id="m-btn-copy-notes" disabled>Copy</button>
+            </div>
+          </div>
+          <div class="notes-placeholder" id="m-notes-placeholder">
+            <div class="icon"></div>
+            <p>Transcription will appear after recording stops.<br>Then click <strong>Generate Notes</strong>.</p>
+          </div>
+          <div class="notes-loading" id="m-notes-loading">
+            <div class="spinner"></div><p>Generating notes…</p>
+          </div>
+          <div class="notes-output" id="m-notes-output"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Hidden picker for imported audio: m4a (iPhone Voice Memos) plus common formats -->
+    <input type="file" id="m-file-import"
+           accept="audio/*,.m4a,.mp3,.wav,.webm,.ogg,.flac"
+           style="display:none;" />
 
   </div><!-- /mode-meeting -->
 
@@ -779,6 +887,9 @@
   const openaiKeyInput    = document.getElementById('openai-key-input');
   const anthropicKeySaved = document.getElementById('anthropic-key-saved');
   const openaiKeySaved    = document.getElementById('openai-key-saved');
+  const settingsClose     = document.getElementById('settings-close');
+  const anthropicKeyToggle = document.getElementById('anthropic-key-toggle');
+  const openaiKeyToggle    = document.getElementById('openai-key-toggle');
 
   anthropicKeyInput.value = getAnthropicKey();
   openaiKeyInput.value    = getOpenAIKey();
@@ -802,6 +913,17 @@
     openaiKeySaved.style.display    = getOpenAIKey()    ? 'inline' : 'none';
   }
 
+  // Show / hide a key field so a pasted key can be verified (helpful on mobile)
+  function wireKeyToggle(toggleBtn, input) {
+    toggleBtn.addEventListener('click', () => {
+      const reveal = input.type === 'password';
+      input.type = reveal ? 'text' : 'password';
+      toggleBtn.textContent = reveal ? 'Hide' : 'Show';
+    });
+  }
+  wireKeyToggle(anthropicKeyToggle, anthropicKeyInput);
+  wireKeyToggle(openaiKeyToggle, openaiKeyInput);
+
   const setupPanel = document.getElementById('setup-panel');
 
   // ── Menu open / close ──
@@ -821,12 +943,32 @@
   });
 
   // ── Menu: Settings ──
+  // Open the Settings panel (shared by the menu item and the key banner button)
+  function openSettingsPanel() {
+    setupPanel.classList.remove('open');
+    menuSetupItem.classList.remove('active');
+    settingsPanel.classList.add('open');
+    menuSettingsItem.classList.add('active');
+    settingsPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
   menuSettingsItem.addEventListener('click', () => {
     setupPanel.classList.remove('open');
     menuSetupItem.classList.remove('active');
     const isOpen = settingsPanel.classList.toggle('open');
     menuSettingsItem.classList.toggle('active', isOpen);
     closeMenu();
+  });
+
+  // Any "Open Settings" button (e.g. the key banner) opens the panel directly
+  document.querySelectorAll('[data-open-settings]').forEach(btn => {
+    btn.addEventListener('click', openSettingsPanel);
+  });
+
+  // Close (X) inside the settings panel — same effect as toggling Settings off
+  settingsClose.addEventListener('click', () => {
+    settingsPanel.classList.remove('open');
+    menuSettingsItem.classList.remove('active');
   });
 
   // ── Menu: Setup Guide ──
@@ -1108,7 +1250,7 @@ ${fmt}`
   function refreshGenerateBtn() {
     const hasKey = getAnthropicKey().length > 0;
     btnGenerate.disabled = !hasKey;
-    if (btnGenerate.style.display !== 'none') noKeyMsg.style.display = hasKey ? 'none' : 'block';
+    if (btnGenerate.style.display !== 'none') noKeyMsg.style.display = hasKey ? 'none' : 'flex';
   }
 
   function showQNNotesPanel(state) {
@@ -1232,6 +1374,8 @@ ${fmt}`
   const mBtnGenerate            = document.getElementById('m-btn-generate');
   const mBtnStop                = document.getElementById('m-btn-stop');
   const mBtnClear               = document.getElementById('m-btn-clear');
+  const menuImportRec           = document.getElementById('menu-import-rec'); // import from the dropdown menu
+  const mFileImport             = document.getElementById('m-file-import');  // hidden audio input
   const mNoAnthropicMsg         = document.getElementById('m-no-anthropic-msg');
   const levelBar                = document.getElementById('level-bar');
   const levelCaption            = document.getElementById('level-caption');
@@ -1313,6 +1457,7 @@ ${fmt}`
   let meetingRecorder  = null;
   let meetingChunks    = [];
   let meetingAudioBlob = null;
+  let lastAudioName    = 'recording.webm';  // filename of the current audio; lets Whisper detect format and lets Retry resend imports correctly
   let mIsRecording     = false;
   let mIsPaused        = false;
 
@@ -1325,7 +1470,7 @@ ${fmt}`
   function refreshMRecordBtn() {
     const hasKey = getOpenAIKey().length > 0;
     mBtnRecord.disabled = !hasKey || mIsRecording;
-    mNoOpenAIMsg.style.display = hasKey ? 'none' : 'block';
+    mNoOpenAIMsg.classList.toggle('show', !hasKey);
   }
 
   // ── Refresh Meeting Generate Notes button ──
@@ -1334,7 +1479,7 @@ ${fmt}`
     const hasText = mTranscriptEl.innerText.trim().length > 0;
     mBtnGenerate.disabled = !hasKey || !hasText;
     if (mBtnGenerate.style.display !== 'none') {
-      mNoAnthropicMsg.style.display = hasKey ? 'none' : 'block';
+      mNoAnthropicMsg.style.display = hasKey ? 'none' : 'flex';
     }
   }
 
@@ -1518,7 +1663,8 @@ ${fmt}`
   }
 
   // ── Whisper transcription ──
-  async function sendToWhisper(blob) {
+  async function sendToWhisper(blob, filename = 'recording.webm') {
+    lastAudioName = filename;  // remember it for Retry and so Whisper reads the right format
     // Guard: empty blob
     if (!blob || blob.size < 500) {
       showMTranscriptPanel('error');
@@ -1548,7 +1694,7 @@ ${fmt}`
 
     try {
       const formData = new FormData();
-      formData.append('file', blob, 'recording.webm');
+      formData.append('file', blob, filename);
       formData.append('model', 'whisper-1');
 
       const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
@@ -1825,11 +1971,39 @@ ${fmt}`
   mBtnRetry.addEventListener('click', () => {
     if (meetingAudioBlob) {
       mBtnRetry.style.display = 'none';
-      sendToWhisper(meetingAudioBlob);   // re-send the preserved blob
+      sendToWhisper(meetingAudioBlob, lastAudioName);   // re-send the preserved blob
     }
   });
 
   mBtnRecord.addEventListener('click', meetingStartRecording);
+
+  // ── Import a recording made on another device, then transcribe it ──
+  // Lives in the dropdown menu (not a primary button) since it's an occasional action.
+  // A browser can't record with the screen locked, so capture happens in the phone's
+  // own voice recorder (e.g. iPhone Voice Memos). Here we just hand the saved file to Whisper.
+  menuImportRec.addEventListener('click', () => {
+    closeMenu();
+    // Import produces a meeting-style transcript, so switch to Meeting / Call mode first
+    if (getCurrentMode() !== 'meeting') {
+      document.querySelector('.mode-tab[data-mode="meeting"]').click();
+    }
+    if (!getOpenAIKey()) {
+      showMTranscriptPanel('error');
+      mTranscriptError.textContent = 'Add your OpenAI API key in Settings before importing a recording.';
+      return;
+    }
+    mFileImport.click();   // open the system file picker
+  });
+
+  mFileImport.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    mBtnRetry.style.display = 'none';   // clear any leftover retry state
+    meetingAudioBlob = file;            // store so Retry can resend it (a File is already a Blob)
+    setMeetingStatus('Importing…', 'idle');
+    sendToWhisper(file, file.name);     // pass the real name so Whisper detects the format
+    mFileImport.value = '';             // reset so the same file can be re-imported
+  });
   mBtnPause.addEventListener('click', meetingTogglePause);
   mBtnStop.addEventListener('click', meetingStopRecording);
   mBtnGenerate.addEventListener('click', generateMeetingNotes);
